@@ -41,6 +41,8 @@ export const isLocationCode = (code: string): boolean => /^[A-Z0-9]{3,7}$/.test(
 interface Best {
   time: number;
   basis: Basis;
+  /** The timetabled time of the same activity, when there is one. */
+  scheduled?: number;
 }
 
 /** The best known time for one activity: actual, then forecast, then estimate, then the timetable. */
@@ -54,9 +56,11 @@ export function best(t: RttTimes | undefined): Best | undefined {
     [t.scheduleInternal, "timetable"],
     [t.scheduleAdvertised, "timetable"],
   ];
+  const sched = at(t.scheduleInternal ?? t.scheduleAdvertised);
+  const scheduled = Number.isNaN(sched) ? undefined : sched;
   for (const [s, basis] of candidates) {
     const time = at(s);
-    if (!Number.isNaN(time)) return { time, basis };
+    if (!Number.isNaN(time)) return { time, basis, scheduled };
   }
   return undefined;
 }
@@ -71,7 +75,13 @@ function scheduled(s: RttService): number | undefined {
   return undefined;
 }
 
-const gone = (s: RttService) => s.temporalData?.displayAs === "CANCELLED" || s.temporalData?.displayAs === "DIVERTED";
+/**
+ * Not coming past: cancelled or diverted here, or not a train (a replacement bus listed at a
+ * station). A cancelled call can mean "won't stop" rather than "won't run" (RTT doesn't say
+ * which), so a few trains that do pass are missed: the safer error at a bridge.
+ */
+const gone = (s: RttService) =>
+  s.temporalData?.displayAs === "CANCELLED" || s.temporalData?.displayAs === "DIVERTED" || (s.scheduleMetadata?.modeType !== undefined && s.scheduleMetadata.modeType !== "TRAIN");
 
 /** It stops here: a call, or it starts or ends here. A null display is a pass. */
 const stops = (s: RttService) => ["CALL", "STARTS", "TERMINATES"].includes(s.temporalData?.displayAs ?? "PASS");
@@ -83,6 +93,7 @@ const reaching = (s: RttService) => best(s.temporalData?.arrival) ?? best(s.temp
 
 /** The passes of every train listed at both A and B, `f` of the way from A to B, soonest first. */
 export function predictPasses(atA: RttLocationResponse, atB: RttLocationResponse, f: number): Pass[] {
+  // One entry per service at B: one that's listed twice there (it reverses) keeps its last.
   const byId = new Map<string, RttService>();
   for (const s of atB.services ?? []) {
     const id = s.scheduleMetadata?.uniqueIdentity;
@@ -101,10 +112,17 @@ export function predictPasses(atA: RttLocationResponse, atB: RttLocationResponse
     const from = leaving(first);
     const to = reaching(second);
     if (!from || !to) continue;
-    const time = from.time + fraction * (to.time - from.time);
+    // Live at the first point but only a timetable at the second: carry the lateness over, so a
+    // late train isn't sent towards an on-time arrival (and never reaches B before it left A).
+    const lateMs = from.basis !== "timetable" && from.scheduled !== undefined ? from.time - from.scheduled : undefined;
+    let toTime = to.time;
+    if (to.basis === "timetable" && lateMs !== undefined && to.scheduled !== undefined) toTime = to.scheduled + lateMs;
+    toTime = Math.max(toTime, from.time);
+    const time = from.time + fraction * (toTime - from.time);
     const basis: Basis = from.basis === "actual" ? "actual" : from.basis === "forecast" || to.basis !== "timetable" ? "forecast" : "timetable";
     const meta = a.scheduleMetadata ?? {};
-    const late = first.temporalData?.departure?.realtimeInternalLateness ?? first.temporalData?.pass?.realtimeInternalLateness;
+    // RTT's own lateness field is empty until a train has really passed, so work it out.
+    const late = lateMs === undefined ? undefined : Math.round(lateMs / 60_000);
     const coaches = a.locationMetadata?.numberOfVehicles ?? b.locationMetadata?.numberOfVehicles;
     passes.push({
       id,
@@ -117,11 +135,11 @@ export function predictPasses(atA: RttLocationResponse, atB: RttLocationResponse
       origin: a.origin?.[0]?.location?.description,
       destination: a.destination?.[a.destination.length - 1]?.location?.description,
       coaches: coaches && coaches > 0 ? coaches : undefined,
-      late: basis === "timetable" || late == null ? undefined : late,
+      late,
       stopsBefore: stops(first),
       stopsAfter: stops(second),
-      timeA: direction === "ab" ? from.time : to.time,
-      timeB: direction === "ab" ? to.time : from.time,
+      timeA: direction === "ab" ? from.time : toTime,
+      timeB: direction === "ab" ? toTime : from.time,
     });
   }
   return passes.sort((x, y) => x.time - y.time);

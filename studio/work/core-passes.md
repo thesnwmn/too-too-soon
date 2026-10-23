@@ -3,7 +3,7 @@ title: Predict pass times from two timing points
 kind: build
 role: engineer
 size: M
-status: doing
+status: done
 milestone: m1-first-trains
 pr: 2
 ---
@@ -21,3 +21,6 @@ The heart of it ([how it works](../../docs/how-it-works.md)): join the trains li
 Fetching (the Worker's job), learned offsets (`its-here`).
 
 ## Log
+- 2026-10-23 started, #2. Also holds the spot URL format and the `/api/next` response types (`spot.ts`, `api.ts`), so the Worker and page share them from the start.
+- 2026-10-23 review: the Critic found lateness read from a field RTT leaves empty until a train has passed, and a late train at A interpolated towards an on-time B. Both fixed, with spec-shaped tests (midnight, the clocks changing, replacement buses); `code/no-dom` now also forbids fetch in core.
+- 2026-10-23 done, #2.

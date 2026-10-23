@@ -38,15 +38,15 @@ export const noToken: Check = {
   },
 };
 
-/** Shared logic that runs in the Worker, the page and Node tests, so may not touch the DOM. */
+/** Shared logic that runs in the Worker, the page and Node tests, so may not touch the DOM, or fetch: callers do the asking. */
 export const NO_DOM = ["packages/core/src"];
-const DOM_GLOBALS = /\b(document|window|navigator|localStorage|sessionStorage|requestAnimationFrame|HTML\w*Element)\b/;
+const DOM_GLOBALS = /\b(document|window|navigator|localStorage|sessionStorage|requestAnimationFrame|HTML\w*Element)\b|\bfetch\s*\(/;
 
 export const noDom: Check = {
   id: "code/no-dom",
   tier: 4,
-  repro: `grep -rnE "document|window|navigator|localStorage" ${NO_DOM.join(" ")}`,
-  hint: "packages/core runs in the Worker and in Node tests as well as the page, so it has no DOM. Move DOM code to web/src.",
+  repro: `grep -rnE "document|window|navigator|localStorage|fetch\\(" ${NO_DOM.join(" ")}`,
+  hint: "packages/core is pure functions: it runs in the Worker and in Node tests as well as the page, so it has no DOM and doesn't fetch. Move DOM code to web/src, and fetching to the Worker or the page.",
   run({ root }) {
     const files = NO_DOM.flatMap((d) => sourceFiles(root, d));
     const hits = findInCode(root, files, DOM_GLOBALS);

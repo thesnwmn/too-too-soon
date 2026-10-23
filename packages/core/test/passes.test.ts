@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { best, DEMO_TRAINS, type DemoTrain, liveDataLimited, lineUps, parseSpot, predictPasses, spotParams, upcoming } from "../src/index.ts";
+import { best, type RttLocationResponse, type RttService, type RttTimes, DEMO_TRAINS, type DemoTrain, liveDataLimited, lineUps, parseSpot, predictPasses, spotParams, upcoming } from "../src/index.ts";
 
 const NOW = Date.parse("2026-10-24T14:00:00Z");
 const MIN = 60_000;
@@ -14,10 +14,10 @@ describe("best", () => {
     const s = "2026-10-24T14:00:00Z";
     const f = "2026-10-24T14:03:00Z";
     const a = "2026-10-24T14:04:00Z";
-    expect(best({ scheduleInternal: s, realtimeForecast: f, realtimeActual: a })).toEqual({ time: Date.parse(a), basis: "actual" });
-    expect(best({ scheduleInternal: s, realtimeForecast: f })).toEqual({ time: Date.parse(f), basis: "forecast" });
-    expect(best({ scheduleInternal: s, realtimeEstimate: f })).toEqual({ time: Date.parse(f), basis: "forecast" });
-    expect(best({ scheduleAdvertised: s })).toEqual({ time: Date.parse(s), basis: "timetable" });
+    expect(best({ scheduleInternal: s, realtimeForecast: f, realtimeActual: a })).toEqual({ time: Date.parse(a), basis: "actual", scheduled: Date.parse(s) });
+    expect(best({ scheduleInternal: s, realtimeForecast: f })).toMatchObject({ time: Date.parse(f), basis: "forecast" });
+    expect(best({ scheduleInternal: s, realtimeEstimate: f })).toMatchObject({ time: Date.parse(f), basis: "forecast" });
+    expect(best({ scheduleAdvertised: s })).toMatchObject({ time: Date.parse(s), basis: "timetable" });
   });
   it("reads offsets, so British Summer Time is already handled", () => expect(best({ scheduleInternal: "2026-07-01T15:00:00+01:00" })?.time).toBe(Date.parse("2026-07-01T14:00:00Z")));
   it("has nothing for a cancelled or empty activity", () => {
@@ -74,7 +74,7 @@ describe("predictPasses", () => {
     const tomorrow = lineUps([train({ at: 10 })], NOW + 24 * 60 * MIN);
     expect(predictPasses(today.a, tomorrow.b, 0.5)).toEqual([]);
   });
-  it("works across midnight", () => {
+  it("works across midnight UTC", () => {
     const late = Date.parse("2026-10-24T23:58:00Z");
     const [p] = predict([train({ at: 1, run: 4 })], 0.5, late);
     expect(new Date(p.time).toISOString()).toBe("2026-10-25T00:01:00.000Z");
@@ -95,6 +95,44 @@ describe("predictPasses", () => {
     const passes = predict(DEMO_TRAINS, 0.4);
     expect(passes.length).toBe(DEMO_TRAINS.length - 2);
     expect(passes.some((p) => !p.passenger)).toBe(true);
+  });
+});
+
+/** A service shaped as RTT's spec has it: `times` are its pass times at one location. */
+const raw = (id: string, date: string, pass: RttTimes, meta: RttService["scheduleMetadata"] = {}): RttService => ({
+  temporalData: { pass, displayAs: null },
+  scheduleMetadata: { uniqueIdentity: `gb-nr:${id}:${date}`, departureDate: date, inPassengerService: true, modeType: "TRAIN", ...meta },
+});
+const at = (...services: RttService[]): RttLocationResponse => ({ services });
+
+describe("predictPasses on spec-shaped data", () => {
+  it("works out lateness from a forecast, which RTT gives without a lateness figure", () => {
+    const a = at(raw("L1", "2026-10-24", { scheduleInternal: "2026-10-24T14:00:00Z", realtimeForecast: "2026-10-24T14:06:00Z" }));
+    const b = at(raw("L1", "2026-10-24", { scheduleInternal: "2026-10-24T14:04:00Z", realtimeForecast: "2026-10-24T14:10:00Z" }));
+    expect(predictPasses(a, b, 0.5)[0]).toMatchObject({ late: 6, basis: "forecast", time: Date.parse("2026-10-24T14:08:00Z") });
+  });
+  it("carries a late actual at A over to a timetable-only B", () => {
+    const a = at(raw("L2", "2026-10-24", { scheduleInternal: "2026-10-24T14:00:00Z", realtimeActual: "2026-10-24T14:10:00Z" }));
+    const b = at(raw("L2", "2026-10-24", { scheduleInternal: "2026-10-24T14:04:00Z" }));
+    const [p] = predictPasses(a, b, 0.5);
+    expect(new Date(p.time).toISOString()).toBe("2026-10-24T14:12:00.000Z");
+    expect(p).toMatchObject({ basis: "actual", late: 10, timeB: Date.parse("2026-10-24T14:14:00Z") });
+  });
+  it("joins a train that started yesterday and passes after midnight", () => {
+    const a = at(raw("N1", "2026-10-23", { scheduleInternal: "2026-10-24T00:59:00+01:00" }));
+    const b = at(raw("N1", "2026-10-23", { scheduleInternal: "2026-10-24T01:03:00+01:00" }));
+    expect(new Date(predictPasses(a, b, 0.5)[0].time).toISOString()).toBe("2026-10-24T00:01:00.000Z");
+  });
+  it("interpolates across the clocks going back", () => {
+    const a = at(raw("C1", "2026-10-25", { scheduleInternal: "2026-10-25T01:58:00+01:00" }));
+    const b = at(raw("C1", "2026-10-25", { scheduleInternal: "2026-10-25T01:02:00+00:00" }));
+    expect(new Date(predictPasses(a, b, 0.5)[0].time).toISOString()).toBe("2026-10-25T01:00:00.000Z");
+  });
+  it("leaves out replacement buses", () => {
+    const bus = { modeType: "REPLACEMENT_BUS" };
+    const a = at(raw("B1", "2026-10-24", { scheduleInternal: "2026-10-24T14:00:00Z" }, bus));
+    const b = at(raw("B1", "2026-10-24", { scheduleInternal: "2026-10-24T14:10:00Z" }, bus));
+    expect(predictPasses(a, b, 0.5)).toEqual([]);
   });
 });
 

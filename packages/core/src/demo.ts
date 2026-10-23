@@ -32,9 +32,11 @@ function times(scheduled: number, now: number, late: number | undefined): RttTim
   const t: RttTimes = { scheduleInternal: iso(scheduled) };
   if (late === undefined) return t;
   const real = scheduled + late * MIN;
-  if (real <= now) t.realtimeActual = iso(real);
-  else t.realtimeForecast = iso(real);
-  t.realtimeInternalLateness = late;
+  // As RTT does: lateness is only given once there's an actual time.
+  if (real <= now) {
+    t.realtimeActual = iso(real);
+    t.realtimeInternalLateness = late;
+  } else t.realtimeForecast = iso(real);
   return t;
 }
 
@@ -59,7 +61,8 @@ function service(train: DemoTrain, at: number, stops: boolean, now: number, date
 
 /** RTT line-ups at A and B for `trains`, as if asked at `now`. */
 export function lineUps(trains: DemoTrain[], now: number, names = { a: "Ashby Junction", b: "Bramford" }): { a: RttLocationResponse; b: RttLocationResponse } {
-  const date = new Date(now).toISOString().slice(0, 10);
+  // RTT's dates are UK dates (en-CA formats as YYYY-MM-DD).
+  const date = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/London" }).format(new Date(now));
   const a: RttService[] = [];
   const b: RttService[] = [];
   for (const train of trains) {
