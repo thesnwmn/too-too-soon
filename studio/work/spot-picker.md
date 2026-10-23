@@ -3,8 +3,9 @@ title: Pick the spot on a map
 kind: build
 role: engineer
 size: M
-status: shaped
+status: doing
 milestone: m1-first-trains
+pr: 9
 needs: [watch-page]
 ---
 
