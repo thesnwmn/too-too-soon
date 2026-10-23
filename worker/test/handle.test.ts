@@ -167,6 +167,20 @@ describe("/api/info", () => {
     expect(rtt.calls.filter((c) => c.url.includes("/api/info"))).toHaveLength(1);
   });
   it("answers JSON when RTT can't be reached", async () => expect((await handle(get("/api/info"), env, fakeRtt({ down: true }).deps)).status).toBe(502));
+  it("tidies a token pasted with a Bearer prefix and a newline, and says so", async () => {
+    const rtt = fakeRtt();
+    const r = await handle(get("/api/info"), { RTT_TOKEN: "Bearer secret-token\n" }, rtt.deps);
+    expect(rtt.calls.every((c) => c.auth === "Bearer secret-token")).toBe(true);
+    expect(((await r.json()) as InfoResponse).token).toEqual({ kind: "access", swapStatus: 403, tidied: true });
+  });
+  it("says what RTT said when it turns the token down, with the token scrubbed out", async () => {
+    const rtt = fakeRtt();
+    const fetch = rtt.deps.fetch;
+    rtt.deps.fetch = (async (input: RequestInfo | URL, init?: RequestInit) =>
+      String(input).includes("/api/info") ? new Response("Invalid token secret-token supplied", { status: 401 }) : fetch(input, init)) as typeof globalThis.fetch;
+    const body = (await (await handle(get("/api/info"), env, rtt.deps)).json()) as InfoResponse;
+    expect(body).toMatchObject({ ok: false, rttSays: "Invalid token … supplied", token: { kind: "access", swapStatus: 403 } });
+  });
   it("says when there's no token", async () => expect(await (await handle(get("/api/info"), {}, fakeRtt().deps)).json()).toMatchObject({ configured: false }));
 });
 

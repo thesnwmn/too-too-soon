@@ -28,4 +28,8 @@ export interface InfoResponse {
   /** Passing trains need detailed mode. */
   detailed: boolean;
   error?: string;
+  /** How the token was taken: swapped for an access token, or used as one, and what RTT said to the swap. Never the token. */
+  token?: { kind: "refresh" | "access"; swapStatus?: number; tidied?: boolean };
+  /** The start of RTT's answer when it turned us down: its own explanation. */
+  rttSays?: string;
 }
