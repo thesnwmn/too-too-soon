@@ -278,7 +278,10 @@ window.setInterval(() => {
 // ---- the map picker, loaded only when it's wanted ----
 
 async function pick(): Promise<void> {
-  const name = (document.querySelector<HTMLInputElement>('input[name="name"]')?.value ?? "").trim();
+  // Keep what's typed, so Cancel (or a pick) comes back to it.
+  const form = document.getElementById("setup") as HTMLFormElement | null;
+  if (form) state.draft = Object.fromEntries([...new FormData(form)].map(([k, x]) => [k, String(x)]));
+  const name = (state.draft?.name ?? "").trim();
   state.picking = true;
   app.innerHTML = `<p class="hint">Loading the map…</p>`;
   try {
@@ -287,7 +290,7 @@ async function pick(): Promise<void> {
       state.picking = false;
       if (picked) {
         state.error = undefined;
-        state.draft = { name: name || `Between ${picked.aName} and ${picked.bName}`, a: picked.a, b: picked.b, f: String(picked.f), an: picked.aName, bn: picked.bName };
+        state.draft = { ...state.draft, name: name || `Between ${picked.aName} and ${picked.bName}`, a: picked.a, b: picked.b, f: String(picked.f), an: picked.aName, bn: picked.bName };
       }
       render();
     });

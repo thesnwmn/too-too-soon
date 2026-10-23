@@ -3,7 +3,12 @@
 // only when the set-up asks for it, so the watch view stays small.
 import * as maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+// MapLibre draws vector tiles in a web worker it finds next to its own file, which a bundle
+// doesn't have: so Vite bundles the worker (with what it imports) and MapLibre is told where.
+import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import { type Located, locate, type OsmElement, overpassQuery } from "@too-too-soon/core";
+
+maplibregl.setWorkerUrl(workerUrl);
 
 const OVERPASS = "https://overpass-api.de/api/interpreter";
 const STYLE = "https://tiles.openfreemap.org/styles/liberty";
@@ -18,7 +23,8 @@ export interface Picked {
 }
 
 async function ask(lat: number, lon: number, radius: number): Promise<OsmElement[]> {
-  const r = await fetch(OVERPASS, { method: "POST", body: new URLSearchParams({ data: overpassQuery(lat, lon, radius) }) });
+  // Overpass can be slow or stuck: give up after 30 s rather than "Looking…" for ever.
+  const r = await fetch(OVERPASS, { method: "POST", body: new URLSearchParams({ data: overpassQuery(lat, lon, radius) }), signal: AbortSignal.timeout(30_000) });
   if (!r.ok) throw new Error(`OpenStreetMap's Overpass answered ${r.status}`);
   return ((await r.json()) as { elements?: OsmElement[] }).elements ?? [];
 }
@@ -95,7 +101,7 @@ export function openPicker(root: HTMLElement, done: (picked: Picked | undefined)
       status.innerHTML = `Between <b>${esc(found.a.name)}</b> (${km(found.a.along)} away) and <b>${esc(found.b.name)}</b> (${km(found.b.along)} away), on the track's timing points ${esc(found.a.code)} and ${esc(found.b.code)}.`;
       use.disabled = false;
     } catch (err) {
-      if (mine === asking) status.textContent = `${(err as Error).message}: try again in a moment.`;
+      if (mine === asking) status.textContent = (err as Error).name === "TimeoutError" ? "OpenStreetMap is slow to answer just now: try again in a moment." : `${(err as Error).message}: try again in a moment.`;
     }
   });
 
