@@ -59,7 +59,7 @@ too-too-soon/
     health/                 the health check and its checks (`pnpm health`)
   .claude/                  the studio's wiring: role briefs (agents/) and commands (skills/)
   .github/
-    workflows/              CI, the PR title check, deploys
+    workflows/              CI, the PR title check, the deploy (Worker) and the demo (Pages)
     pull_request_template.md
 ```
 
@@ -193,7 +193,7 @@ What every session does on `/go`:
 | **1. Tools** | Node is the version `.nvmrc` pins; pnpm matches `packageManager`; git. |
 | **2. Dependencies** | Install from the lockfile; every workspace package resolves its dependencies. |
 | **3. Repo** | On a session branch, not `main`; no conflict markers; every top-level folder is in the [repo map](#repo-structure); how far behind `main`. At the end (`--end`): tree clean, everything pushed, a PR for the branch. |
-| **4. Code** | The token rule (`code/no-token-in-page`: no RTT host, token or auth header in `web/`); no DOM in `packages/core`; `pnpm typecheck`, `pnpm test`, `pnpm build`. |
+| **4. Code** | The token rule (`code/no-token-in-page`: no RTT host, token or auth header in `web/`); no DOM or fetch in `packages/core`; the Worker's config serves the page and holds no secrets (`code/wrangler`); `pnpm typecheck`, `pnpm test`, `pnpm build` (the page, and the Worker's dry-run deploy). |
 | **5. Studio and docs** | Every studio file follows its format (`studio/files`); no unit left `doing` on main; every role has a brief and a row in the roles table; every command a skill and a section in the producer guide; every doc is in `docs/README.md`; every relative link resolves. |
 
 - `--quick` skips the slow checks (the build). The session start hook in `.claude/settings.json` runs it, and never fails the session start.

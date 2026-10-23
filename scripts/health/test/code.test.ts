@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { noDom, noToken, typecheck } from "../src/code.ts";
+import { noDom, noToken, typecheck, wrangler } from "../src/code.ts";
 import { ctx, fakeShell, tmpDir } from "./fixture.ts";
 
 describe("code/typecheck (and the other pnpm runs)", () => {
@@ -37,4 +37,11 @@ describe("code/no-dom", () => {
     const r = noDom.run(ctx(tmpDir({ "packages/core/src/rtt.ts": "export const get = (u: string) => fetch(u);\n" })));
     expect(r.status).toBe("fail");
   });
+});
+
+describe("code/wrangler", () => {
+  const good = '[assets]\ndirectory = "../web/dist"\nrun_worker_first = ["/api/*"]\n';
+  it("passes on a config that serves the page and keeps no secrets", () => expect(wrangler.run(ctx(tmpDir({ "worker/wrangler.toml": good }))).status).toBe("pass"));
+  it("fails on the token in config", () => expect(wrangler.run(ctx(tmpDir({ "worker/wrangler.toml": good + '[vars]\nRTT_TOKEN = "abc"\n' }))).detail).toMatch(/secret/));
+  it("fails when the API isn't routed to the Worker first", () => expect(wrangler.run(ctx(tmpDir({ "worker/wrangler.toml": '[assets]\ndirectory = "../web/dist"\n' }))).status).toBe("fail"));
 });

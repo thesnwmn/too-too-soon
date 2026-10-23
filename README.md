@@ -22,7 +22,8 @@ A bridge sits between two **timing points** (stations or junctions, each with a 
 
 ## Where it is
 
-Being built. Once the [one-time setup](studio/producer-guide.md#one-time-setup) is done, every merge to `main` deploys it to Cloudflare's free plan.
+- **Live:** `https://too-too-soon.<your-subdomain>.workers.dev`, once the [one-time setup](studio/producer-guide.md#one-time-setup) is done. Every merge to `main` deploys it to Cloudflare's free plan, and the deploy's summary on GitHub (Actions → Deploy) gives the address and whether the token has detailed mode.
+- **Demo:** [thesnwmn.github.io/too-too-soon](https://thesnwmn.github.io/too-too-soon/), made-up trains on a made-up line, once GitHub Pages is switched on (step 4 of the setup).
 
 ## Developing
 

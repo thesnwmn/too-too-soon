@@ -1,0 +1,81 @@
+name: Deploy
+
+# Every merge to main deploys the Worker, with the built page as its static assets, to
+# Cloudflare's free plan. It needs three repository secrets (studio/producer-guide.md#one-time-setup);
+# without them it says so and stops, rather than failing.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      RTT_TOKEN: ${{ secrets.RTT_TOKEN }}
+      WRANGLER_SEND_METRICS: "false"
+    steps:
+      - name: Check the secrets are set
+        id: ready
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::notice title=Not deployed::CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID aren't set yet. See studio/producer-guide.md#one-time-setup."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.ready.outputs.ok == 'true'
+        uses: actions/checkout@v4
+      - if: steps.ready.outputs.ok == 'true'
+        uses: pnpm/action-setup@v4
+      - if: steps.ready.outputs.ok == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - if: steps.ready.outputs.ok == 'true'
+        run: pnpm install --frozen-lockfile
+      - if: steps.ready.outputs.ok == 'true'
+        run: pnpm --filter @too-too-soon/web build
+
+      - name: Deploy the Worker and the page
+        if: steps.ready.outputs.ok == 'true'
+        id: deploy
+        working-directory: worker
+        run: |
+          pnpm exec wrangler deploy 2>&1 | tee deploy.log
+          url=$(grep -oE 'https://[a-zA-Z0-9.-]+\.workers\.dev' deploy.log | head -1)
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      # From the secret store to the Worker's, through stdin: never echoed, never in a file.
+      - name: Give the Worker the Realtime Trains token
+        if: steps.ready.outputs.ok == 'true' && env.RTT_TOKEN != ''
+        working-directory: worker
+        run: printf '%s' "$RTT_TOKEN" | pnpm exec wrangler secret put RTT_TOKEN
+
+      - name: Say where it is, and what the token may do
+        if: steps.ready.outputs.ok == 'true'
+        env:
+          URL: ${{ steps.deploy.outputs.url }}
+        run: |
+          {
+            echo "## Deployed"
+            echo
+            echo "**Site:** ${URL:-see the deploy step's log}"
+            if [ -z "$RTT_TOKEN" ]; then
+              echo
+              echo "No \`RTT_TOKEN\` secret yet, so the site has no live data. See studio/producer-guide.md#one-time-setup."
+            elif [ -n "$URL" ]; then
+              echo
+              echo "**/api/info:** \`$(curl -s --max-time 20 "$URL/api/info")\`"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
