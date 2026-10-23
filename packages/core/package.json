@@ -1,0 +1,13 @@
+{
+  "name": "@too-too-soon/core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Which trains pass a spot, and when: RTT's location line-ups at the timing points either side, joined and interpolated. No DOM, no fetch.",
+  "main": "src/index.ts",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "typecheck": "tsc -p .",
+    "test": "vitest run"
+  }
+}

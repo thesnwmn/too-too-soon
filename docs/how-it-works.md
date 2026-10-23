@@ -46,6 +46,8 @@ time at B = best(arrival at B)   or best(pass at B)
 pass      = tA + f × (tB − tA)
 ```
 
+An estimate (RTT's guess for a train that hasn't reported) counts as a forecast. When there's a live time at the first point but only the timetable at the second, the lateness at the first is carried over to the second, so a late train isn't interpolated towards an on-time arrival. Lateness is worked out from the times (RTT's own lateness figure is only there once a train has really passed).
+
 Each pass also carries what it is (a passenger train with origin, destination and coaches, or freight or empty stock), whether it stops at A or B, and how sure the time is: **actual** once it has really passed the first point, **forecast** with live data, **timetable** without.
 
 Linear is close at line speed. A train that stops at A reaches the bridge a little later than linear says (it's still accelerating), and one stopping at B a little earlier. Expect ±1 to 2 minutes; the "it's here!" idea on the board learns each spot's offsets to close the gap.
@@ -54,5 +56,7 @@ Linear is close at line speed. A train that stops at A reaches the bridge a litt
 
 - **A train at only one end** (it starts or ends in between, at a depot or siding): left out.
 - **Around midnight**: the join uses the unique identity, which includes the date.
-- **No live data** (`systemStatus` says `REALTIME_DATA_LIMITED` or `SCHEDULE_ONLY`): timetable times, marked as such.
-- **Engineering works**: diverted trains show as `DIVERTED` and are dropped.
+- **No live data** (`systemStatus` says anything but `OK`, like `REALTIME_DATA_LIMITED` or `SCHEDULE_ONLY`): timetable times, marked as such.
+- **Engineering works**: diverted trains show as `DIVERTED` and are dropped. Replacement buses listed at a station are dropped too.
+- **Cancelled calls**: a train shown as `CANCELLED` at A or B is dropped. RTT doesn't say whether that means "won't stop" or "won't run", so a few trains that do pass are missed: the safer mistake at a bridge.
+- **The clocks changing**: times carry their offsets, so a train timed at 01:58+01:00 and 01:02+00:00 is four minutes apart, as it should be.

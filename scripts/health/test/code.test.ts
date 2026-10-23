@@ -33,4 +33,8 @@ describe("code/no-dom", () => {
     expect(r.status).toBe("fail");
     expect(r.out).toBe("packages/core/src/spot.ts:1: export const s = localStorage.getItem('spot');");
   });
+  it("fails on fetching in core", () => {
+    const r = noDom.run(ctx(tmpDir({ "packages/core/src/rtt.ts": "export const get = (u: string) => fetch(u);\n" })));
+    expect(r.status).toBe("fail");
+  });
 });
