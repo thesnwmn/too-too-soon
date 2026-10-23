@@ -30,8 +30,8 @@ interface Access {
 /**
  * The access token for `secret`. RTT hands out either a long-life access token or a refresh
  * token, and the producer only pastes "the token": so the first time, ask RTT to swap it.
- * If it swaps, it was a refresh token; if not, it's an access token already. Kept for the
- * life of the isolate.
+ * If it swaps, it was a refresh token; if RTT turns it down (401 or 403), it's an access
+ * token already. Any other failure isn't remembered. Kept for the life of the isolate.
  */
 let access: { secret: string; access: Promise<Access> } | undefined;
 
@@ -39,11 +39,20 @@ export function forgetToken(): void {
   access = undefined;
 }
 
+/** Forget everything learned about RTT: for the tests. */
+export function resetRtt(): void {
+  access = undefined;
+  windowAllowed = true;
+}
+
 export async function accessToken(secret: string, deps: Deps): Promise<Access> {
   // Kept as a promise, so the two line-ups asked for at once share one swap.
   if (access?.secret === secret) {
-    const held = await access.access;
+    const asked = access.access;
+    const held = await asked;
     if (held.until > deps.now() + 60_000) return held;
+    // Someone else started a new swap while we waited: share theirs.
+    if (access?.access !== asked && access?.secret === secret) return access.access;
   }
   const pending = swap(secret, deps);
   access = { secret, access: pending };
@@ -56,14 +65,12 @@ export async function accessToken(secret: string, deps: Deps): Promise<Access> {
 
 async function swap(secret: string, deps: Deps): Promise<Access> {
   const r = await deps.fetch(`${RTT}/api/get_access_token`, { headers: { Authorization: `Bearer ${secret}` } });
-  if (r.ok) {
-    const body = (await r.json().catch(() => ({}))) as { token?: string; validUntil?: string; entitlements?: unknown };
-    if (body.token) {
-      const until = body.validUntil ? Date.parse(body.validUntil) : NaN;
-      return { token: body.token, until: Number.isNaN(until) ? deps.now() + 30 * 60_000 : until, entitlements: entitlementNames(body.entitlements) };
-    }
-  }
-  return { token: secret, until: Infinity };
+  if (r.status === 401 || r.status === 403) return { token: secret, until: Infinity };
+  if (!r.ok) throw new RttError(r.status, `RTT answered ${r.status} for a token`, retryAfter(r));
+  const body = (await r.json().catch(() => ({}))) as { token?: string; validUntil?: string; entitlements?: unknown };
+  if (!body.token) return { token: secret, until: Infinity };
+  const until = body.validUntil ? Date.parse(body.validUntil) : NaN;
+  return { token: body.token, until: Number.isNaN(until) ? deps.now() + 30 * 60_000 : until, entitlements: entitlementNames(body.entitlements) };
 }
 
 /** RTT's entitlement list, as names: it's a list of strings or of objects with a name. */
@@ -81,7 +88,7 @@ async function get(path: string, secret: string, deps: Deps): Promise<Response> 
 
 /** Minutes before now that a line-up starts: a late train past A may not have reached the spot yet. */
 export const LOOK_BACK_MIN = 15;
-/** Minutes a line-up covers from its start. */
+/** Minutes a line-up covers from its start: 15 back and 105 ahead. */
 export const WINDOW_MIN = 120;
 
 /**
@@ -106,11 +113,13 @@ export async function lineUp(code: string, secret: string, deps: Deps): Promise<
     r = retry;
   }
   if (r.status === 204) return { services: [] };
-  if (!r.ok) {
-    const retry = Number(r.headers.get("Retry-After"));
-    throw new RttError(r.status, `RTT answered ${r.status} for ${code}`, Number.isFinite(retry) && retry > 0 ? retry : undefined);
-  }
+  if (!r.ok) throw new RttError(r.status, `RTT answered ${r.status} for ${code}`, retryAfter(r));
   return (await r.json()) as RttLocationResponse;
+}
+
+function retryAfter(r: Response): number | undefined {
+  const s = Number(r.headers.get("Retry-After"));
+  return Number.isFinite(s) && s > 0 ? s : undefined;
 }
 
 export interface Info {

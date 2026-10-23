@@ -3,7 +3,7 @@ title: The watch view, with countdowns
 kind: build
 role: engineer
 size: M
-status: doing
+status: trial
 milestone: m1-first-trains
 pr: 3
 needs: [core-passes]
@@ -23,3 +23,5 @@ What the producer looks at by the bridge, phone in one hand and a child in the o
 Picking the spot on a map (`spot-picker`). "It's here!" (`its-here`).
 
 ## Log
+- 2026-10-23 started, #3. The Tester's run (Chromium, phone width) found a bad form submit cleared what was typed, the fallback demo mixed the user's spot with demo names, and the "not set up" message had no link. All fixed. The Critic's page findings (ignored Retry-After, stale answers for a changed spot, no cancel, iPhone icon, a noisy live region) fixed too.
+- 2026-10-23 merged, #3: waiting for a trip to the bridge. Try: is the countdown readable in sun, and is the list enough to choose when to walk down?

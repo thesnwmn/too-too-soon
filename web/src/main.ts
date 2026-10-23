@@ -67,11 +67,15 @@ function demoData(now: number): NextResponse {
 }
 
 let timer: number | undefined;
+/** Counts requests, so an answer for a spot that's since been changed is ignored. */
+let asked = 0;
 
 async function refresh(): Promise<void> {
   window.clearTimeout(timer);
   const spot = state.spot;
   if (!spot || state.editing) return;
+  const mine = ++asked;
+  let wait: number | undefined;
   state.loading = true;
   render();
   if (demo) {
@@ -80,8 +84,13 @@ async function refresh(): Promise<void> {
   } else {
     try {
       const r = await fetch(`api/next?${spotParams(spot)}`, { headers: { Accept: "application/json" } });
+      if (mine !== asked) return;
       const type = r.headers.get("Content-Type") ?? "";
-      if (!type.includes("json")) {
+      const retry = Number(r.headers.get("Retry-After"));
+      if (r.status === 429 && retry > 0) wait = retry * 1000;
+      if (!type.includes("json") && r.status !== 404) {
+        state.error = "Couldn't get the trains just now: trying again shortly.";
+      } else if (!type.includes("json")) {
         // No Worker behind this page (a static host): show the demo's own made-up spot, and say why.
         demo = true;
         state.demoWhy = "There's no live data on this site, so here's the demo: made-up trains on a made-up line.";
@@ -97,12 +106,13 @@ async function refresh(): Promise<void> {
         }
       }
     } catch {
+      if (mine !== asked) return;
       state.error = "Couldn't reach the server: no signal?";
     }
   }
   state.loading = false;
   render();
-  if (document.visibilityState === "visible") timer = window.setTimeout(refresh, refreshAfter(state.data?.passes ?? [], Date.now()));
+  if (document.visibilityState === "visible") timer = window.setTimeout(refresh, Math.max(wait ?? 0, refreshAfter(state.data?.passes ?? [], Date.now())));
 }
 
 document.addEventListener("visibilitychange", () => {
@@ -168,7 +178,7 @@ function setupView(): string {
   const d = state.draft;
   const v = (x: string | number | undefined) => (x === undefined ? "" : esc(String(x)));
   const val = (k: string, x: string | number | undefined) => v(d ? d[k] : x);
-  return `<header><h1>Too Too Soon</h1></header>
+  return `<header><h1>Too Too Soon</h1>${s ? `<button type="button" id="cancel" class="ghost">Cancel</button>` : ""}</header>
     <p class="intro">How long till the next too too? Set up the spot you watch trains from, between two <b>timing points</b>: the stations or junctions either side, by their TIPLOC codes (on <a href="https://www.realtimetrains.co.uk/">Realtime Trains</a>, a location's detailed view shows it).</p>
     ${state.error ? `<p class="note">${esc(state.error)}</p>` : ""}
     <form id="setup">
@@ -205,6 +215,13 @@ function render(): void {
     render();
   });
   document.getElementById("refresh")?.addEventListener("click", () => void refresh());
+  document.getElementById("cancel")?.addEventListener("click", () => {
+    state.editing = false;
+    state.draft = undefined;
+    state.error = undefined;
+    render();
+    void refresh();
+  });
   const form = document.getElementById("setup") as HTMLFormElement | null;
   if (form) {
     const f = form.elements.namedItem("f") as HTMLInputElement;
@@ -230,8 +247,10 @@ function render(): void {
   }
 }
 
-// The countdown ticks every second without asking anyone.
+// The countdown ticks every second without asking anyone, and the list's "in N min" every 30.
+let ticks = 0;
 window.setInterval(() => {
+  if (++ticks % 30 === 0 && state.spot && !state.editing) return render();
   const el = app.querySelector<HTMLElement>(".count");
   if (!el) return;
   const t = Number(el.dataset.time);
