@@ -22,6 +22,10 @@ export class RttError extends Error {
 
 interface Access {
   token: string;
+  /** Swapped from a refresh token, or used as an access token as given. */
+  kind: "refresh" | "access";
+  /** What RTT answered the swap. */
+  swapStatus?: number;
   /** Epoch ms after which it needs refreshing; Infinity for a long-life access token. */
   until: number;
   entitlements?: string[];
@@ -65,12 +69,12 @@ export async function accessToken(secret: string, deps: Deps): Promise<Access> {
 
 async function swap(secret: string, deps: Deps): Promise<Access> {
   const r = await deps.fetch(`${RTT}/api/get_access_token`, { headers: { Authorization: `Bearer ${secret}` } });
-  if (r.status === 401 || r.status === 403) return { token: secret, until: Infinity };
+  if (r.status === 401 || r.status === 403) return { token: secret, until: Infinity, kind: "access", swapStatus: r.status };
   if (!r.ok) throw new RttError(r.status, `RTT answered ${r.status} for a token`, retryAfter(r));
   const body = (await r.json().catch(() => ({}))) as { token?: string; validUntil?: string; entitlements?: unknown };
-  if (!body.token) return { token: secret, until: Infinity };
+  if (!body.token) return { token: secret, until: Infinity, kind: "access", swapStatus: r.status };
   const until = body.validUntil ? Date.parse(body.validUntil) : NaN;
-  return { token: body.token, until: Number.isNaN(until) ? deps.now() + 30 * 60_000 : until, entitlements: entitlementNames(body.entitlements) };
+  return { token: body.token, until: Number.isNaN(until) ? deps.now() + 30 * 60_000 : until, entitlements: entitlementNames(body.entitlements), kind: "refresh", swapStatus: r.status };
 }
 
 /** RTT's entitlement list, as names: it's a list of strings or of objects with a name. */
@@ -127,12 +131,29 @@ export interface Info {
   apiVersion?: string;
   entitlements?: string[];
   status: number;
+  kind: "refresh" | "access";
+  swapStatus?: number;
+  /** The start of RTT's answer when it said no, with the token scrubbed out in case it's echoed. */
+  rttSays?: string;
 }
 
 /** What the token may do: /api/info. */
 export async function info(secret: string, deps: Deps): Promise<Info> {
+  const { kind, swapStatus, token } = await accessToken(secret, deps);
   const r = await get("/api/info", secret, deps);
-  if (!r.ok) return { ok: false, status: r.status };
+  if (!r.ok) {
+    const text = (await r.text().catch(() => "")).split(token).join("…").split(secret).join("…");
+    return { ok: false, status: r.status, kind, swapStatus, rttSays: text.slice(0, 200) || undefined };
+  }
   const body = (await r.json().catch(() => ({}))) as { api_version?: string; credentials?: { entitlements?: unknown } };
-  return { ok: true, status: r.status, apiVersion: body.api_version, entitlements: entitlementNames(body.credentials?.entitlements) };
+  return { ok: true, status: r.status, apiVersion: body.api_version, entitlements: entitlementNames(body.credentials?.entitlements), kind, swapStatus };
+}
+
+/**
+ * The token as pasted, tidied: a secret copied from a web page easily picks up spaces, a
+ * newline or a "Bearer " in front, and any of them makes RTT answer 401.
+ */
+export function tidyToken(raw: string): { token: string; tidied: boolean } {
+  const token = raw.trim().replace(/^Bearer\s+/i, "").trim();
+  return { token, tidied: token !== raw };
 }

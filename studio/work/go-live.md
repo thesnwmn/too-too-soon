@@ -20,3 +20,4 @@ The milestone's exit: real trains, real bridge.
 Accuracy tuning (`its-here`).
 
 ## Log
+- 2026-10-23 first deploy (producer set up the accounts): the Worker is live at too-too-soon.justin-fc2.workers.dev and has the token, but RTT answers 401. #6 tidies the pasted token and makes `/api/info` say how it was taken and what RTT said; `probe.yml` reads it from GitHub's runners, since sessions can't reach workers.dev.

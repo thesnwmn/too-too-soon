@@ -1,7 +1,7 @@
 // The Worker's routes. Everything it needs from outside (fetch, the clock, the cache) is
 // passed in, so the tests run it against recorded responses.
 import { type ErrorResponse, type InfoResponse, liveDataLimited, type NextResponse, parseSpot, predictPasses, type RttLocationResponse, upcoming } from "@too-too-soon/core";
-import { type Deps, info, lineUp, RttError } from "./rtt.ts";
+import { type Deps, info, lineUp, RttError, tidyToken } from "./rtt.ts";
 
 export interface Env {
   /** The Realtime Trains token (access or refresh): a Worker secret, set by the deploy workflow. */
@@ -102,7 +102,7 @@ async function next(url: URL, env: Env, deps: HandlerDeps): Promise<Response> {
 let infoCache: { at: number; body: InfoResponse } | undefined;
 export const resetInfo = () => (infoCache = undefined);
 
-async function infoRoute(env: Env, deps: HandlerDeps): Promise<Response> {
+async function infoRoute(env: Env & { tidied?: boolean }, deps: HandlerDeps): Promise<Response> {
   if (!env.RTT_TOKEN) return json({ configured: false, ok: false, detailed: false, error: "No RTT_TOKEN secret: see the one-time setup." });
   if (infoCache && deps.now() - infoCache.at < 5 * 60_000) return json(infoCache.body);
   let i: Awaited<ReturnType<typeof info>>;
@@ -118,13 +118,17 @@ async function infoRoute(env: Env, deps: HandlerDeps): Promise<Response> {
     entitlements: i.entitlements,
     detailed: i.entitlements?.includes("allowDetailed") ?? false,
     error: i.ok ? undefined : `Realtime Trains answered ${i.status}`,
+    token: { kind: i.kind, swapStatus: i.swapStatus, tidied: env.tidied || undefined },
+    rttSays: i.rttSays,
   };
   if (i.ok) infoCache = { at: deps.now(), body };
   return json(body);
 }
 
-export async function handle(request: Request, env: Env, deps: HandlerDeps): Promise<Response> {
+export async function handle(request: Request, rawEnv: Env, deps: HandlerDeps): Promise<Response> {
   const url = new URL(request.url);
+  const tidy = rawEnv.RTT_TOKEN ? tidyToken(rawEnv.RTT_TOKEN) : undefined;
+  const env: Env & { tidied?: boolean } = { ...rawEnv, RTT_TOKEN: tidy?.token || undefined, tidied: tidy?.tidied };
   const api = url.pathname.startsWith("/api/");
   if (request.method !== "GET" && !(request.method === "HEAD" && !api)) return json({ error: "GET only" }, 405);
   if (url.pathname === "/api/next") return next(url, env, deps);
