@@ -159,6 +159,7 @@ function watchView(spot: Spot, now: number): string {
     state.error && data && esc(state.error),
     data?.stale && `Couldn't ask Realtime Trains just now: this list is from ${age} min ago.`,
     data?.limited && "Realtime Trains says its live data is limited: times may be timetable only.",
+    data?.stoppingOnly && `Only trains that stop at ${esc(spot.aName ?? data.aName ?? spot.a)} and ${esc(spot.bName ?? data.bName ?? spot.b)} are listed: fast trains and freight may go by too.`,
   ].filter(Boolean);
   return `<header>
       <h1>${esc(spot.name)}</h1>

@@ -1,7 +1,7 @@
 // The Worker's routes. Everything it needs from outside (fetch, the clock, the cache) is
 // passed in, so the tests run it against recorded responses.
 import { type ErrorResponse, type InfoResponse, liveDataLimited, type NextResponse, parseSpot, predictPasses, type RttLocationResponse, upcoming } from "@too-too-soon/core";
-import { type Deps, info, lineUp, RttError, tidyToken } from "./rtt.ts";
+import { accessToken, type Deps, info, lineUp, RttError, tidyToken } from "./rtt.ts";
 
 export interface Env {
   /** The Realtime Trains token (access or refresh): a Worker secret, set by the deploy workflow. */
@@ -92,6 +92,9 @@ async function next(url: URL, env: Env, deps: HandlerDeps): Promise<Response> {
     };
     if (atA.stale || atB.stale) body.stale = true;
     if (liveDataLimited(atA.data, atB.data)) body.limited = true;
+    // A swapped token says what it may do; without detailed mode RTT lists only trains that call.
+    const ents = await accessToken(env.RTT_TOKEN, deps).then((t) => t.entitlements).catch(() => undefined);
+    if (ents && !ents.includes("allowDetailed")) body.stoppingOnly = true;
     return json(body);
   } catch (e) {
     return failure(e, a, b);
