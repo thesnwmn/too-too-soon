@@ -2,9 +2,14 @@ name: Probe
 
 # Asks the live Worker what it sees, from GitHub's runners (sessions can't always reach
 # workers.dev): /api/info, then /api/next for a spot. Run it by hand, from the Actions tab or a session.
+# Give `place` (a Google Maps link, short or long, or "lat,lon") to find the spot's timing points
+# from OpenStreetMap the way the map picker does, instead of a and b.
 on:
   workflow_dispatch:
     inputs:
+      place:
+        description: A map link or "lat,lon" (overrides a, b and f)
+        default: ""
       a:
         description: Timing point A (TIPLOC or station code)
         default: CLJ
@@ -31,6 +36,7 @@ jobs:
           node-version-file: .nvmrc
       - run: node .github/scripts/probe.mjs
         env:
+          PLACE: ${{ inputs.place }}
           A: ${{ inputs.a }}
           B: ${{ inputs.b }}
           F: ${{ inputs.f }}

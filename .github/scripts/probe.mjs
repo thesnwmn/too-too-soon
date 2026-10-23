@@ -1,5 +1,44 @@
 // Asks the live Worker /api/info and /api/next, and says what came back: run by probe.yml.
+// With PLACE (a map link or "lat,lon"), first finds the spot's timing points from OpenStreetMap,
+// with the same `locate` the map picker uses.
 import { appendFileSync } from "node:fs";
+import { locate, overpassQuery } from "../../packages/core/src/locate.ts";
+
+/** Coordinates from "lat,lon" or a Google Maps link, following a short link's redirects. */
+async function coordinates(place) {
+  const pair = place.match(/(-?\d{1,2}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)/);
+  if (pair && !/^https?:/.test(place.trim())) return { lat: Number(pair[1]), lon: Number(pair[2]) };
+  const r = await fetch(place.trim(), { redirect: "follow", headers: { "User-Agent": "Mozilla/5.0" } });
+  const text = `${r.url} ${await r.text()}`;
+  // A pin is !3d<lat>!4d<lon>; a view is @lat,lon; a search is ?q=lat,lon.
+  const m = text.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/) ?? text.match(/[@=](-?\d{1,2}\.\d{3,}),(-?\d{1,3}\.\d{3,})/);
+  if (!m) throw new Error(`no coordinates in ${r.url}`);
+  return { lat: Number(m[1]), lon: Number(m[2]) };
+}
+
+const spotLines = [];
+if (process.env.PLACE) {
+  const at = await coordinates(process.env.PLACE);
+  spotLines.push(`**Place:** ${at.lat.toFixed(5)}, ${at.lon.toFixed(5)} (https://www.openstreetmap.org/?mlat=${at.lat}&mlon=${at.lon}#map=17/${at.lat}/${at.lon})`);
+  let found;
+  for (const radius of [3000, 8000]) {
+    const r = await fetch("https://overpass-api.de/api/interpreter", { method: "POST", body: new URLSearchParams({ data: overpassQuery(at.lat, at.lon, radius) }) });
+    found = locate((await r.json()).elements ?? [], at);
+    if (found) break;
+  }
+  if (!found) {
+    spotLines.push("", "No running line with timing points either side within 200 m of that place.");
+    console.log(spotLines.join("\n"));
+    if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, spotLines.join("\n") + "\n");
+    process.exit(0);
+  }
+  const round = (m) => `${Math.round(m)} m`;
+  spotLines.push(`**Spot:** ${round(found.offTrack)} from the track; A ${found.a.code} (${found.a.name}, ${round(found.a.along)} along the track), B ${found.b.code} (${found.b.name}, ${round(found.b.along)}), f ${found.f.toFixed(2)}`, "");
+  process.env.A = found.a.code;
+  process.env.B = found.b.code;
+  process.env.F = found.f.toFixed(2);
+  process.env.SPOT_LINK = new URLSearchParams({ name: "Our bridge", a: found.a.code, b: found.b.code, f: found.f.toFixed(2), an: found.a.name, bn: found.b.name }).toString();
+}
 
 const site = (process.env.SITE || "").replace(/\/$/, "");
 if (!site) {
@@ -22,7 +61,7 @@ const get = async (path) => {
 const info = await get("/api/info");
 const next = await get(`/api/next?${q}`);
 const clock = (t) => new Date(t).toLocaleTimeString("en-GB", { timeZone: "Europe/London", hour: "2-digit", minute: "2-digit" });
-const lines = [`## Probe of ${site}`, "", "**/api/info**", "", "```json", JSON.stringify(info, null, 2), "```", "", `**/api/next?${q}**: ${next.status}`, ""];
+const lines = [`## Probe of ${site}`, "", ...spotLines, ...(process.env.SPOT_LINK ? [`**Link:** ${site}/?${process.env.SPOT_LINK}`, ""] : []), "**/api/info**", "", "```json", JSON.stringify(info, null, 2), "```", "", `**/api/next?${q}**: ${next.status}`, ""];
 const passes = next.body?.passes;
 if (Array.isArray(passes)) {
   lines.push(`${passes.length} trains between ${next.body.aName ?? q.get("a")} and ${next.body.bName ?? q.get("b")}${next.body.stale ? " (stale)" : ""}${next.body.limited ? " (live data limited)" : ""}:`, "");
