@@ -3,3 +3,7 @@ packages:
   - worker
   - web
   - scripts/health
+# Packages allowed to run install scripts: wrangler's bundler and runtime fetch their binaries.
+onlyBuiltDependencies:
+  - esbuild
+  - workerd

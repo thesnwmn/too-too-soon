@@ -3,8 +3,9 @@ title: The watch view, with countdowns
 kind: build
 role: engineer
 size: M
-status: shaped
+status: doing
 milestone: m1-first-trains
+pr: 3
 needs: [core-passes]
 ---
 

@@ -1,0 +1,12 @@
+# The Worker: /api/* runs src/index.ts; everything else is the built page from web/dist.
+# Deployed by .github/workflows/deploy.yml. Secrets (RTT_TOKEN) are set there, never here.
+name = "too-too-soon"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+workers_dev = true
+
+[assets]
+directory = "../web/dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*"]

@@ -1,0 +1,22 @@
+{
+  "name": "@too-too-soon/worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The Cloudflare Worker: holds the Realtime Trains token, answers /api/next and /api/info, and serves the page.",
+  "scripts": {
+    "typecheck": "tsc -p .",
+    "test": "vitest run",
+    "build": "wrangler deploy --dry-run --outdir dist",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "@too-too-soon/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@too-too-soon/web": "workspace:*",
+    "@cloudflare/workers-types": "5.20261001.1",
+    "wrangler": "4.148.0"
+  }
+}
