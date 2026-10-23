@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { best, type RttLocationResponse, type RttService, type RttTimes, DEMO_TRAINS, type DemoTrain, liveDataLimited, lineUps, parseSpot, predictPasses, spotParams, upcoming } from "../src/index.ts";
+import { best, rttTime, type RttLocationResponse, type RttService, type RttTimes, DEMO_TRAINS, type DemoTrain, liveDataLimited, lineUps, parseSpot, predictPasses, spotParams, upcoming } from "../src/index.ts";
 
 const NOW = Date.parse("2026-10-24T14:00:00Z");
 const MIN = 60_000;
@@ -133,6 +133,26 @@ describe("predictPasses on spec-shaped data", () => {
     const a = at(raw("B1", "2026-10-24", { scheduleInternal: "2026-10-24T14:00:00Z" }, bus));
     const b = at(raw("B1", "2026-10-24", { scheduleInternal: "2026-10-24T14:10:00Z" }, bus));
     expect(predictPasses(a, b, 0.5)).toEqual([]);
+  });
+});
+
+describe("rttTime", () => {
+  it("reads a time without an offset as UK time, as the live API sends them", () => {
+    expect(new Date(rttTime("2026-10-24T00:12:00")).toISOString()).toBe("2026-10-23T23:12:00.000Z");
+    expect(new Date(rttTime("2026-12-24T14:07:00")).toISOString()).toBe("2026-12-24T14:07:00.000Z");
+  });
+  it("gets both sides of the clocks going back right", () => {
+    expect(new Date(rttTime("2026-10-25T00:30:00")).toISOString()).toBe("2026-10-24T23:30:00.000Z");
+    expect(new Date(rttTime("2026-10-25T02:30:00")).toISOString()).toBe("2026-10-25T02:30:00.000Z");
+  });
+  it("still honours an offset or Z when there is one", () => {
+    expect(rttTime("2026-07-01T15:00:00+01:00")).toBe(Date.parse("2026-07-01T14:00:00Z"));
+    expect(rttTime("2026-07-01T15:00:00Z")).toBe(Date.parse("2026-07-01T15:00:00Z"));
+  });
+  it("interpolates offset-less times as the live API sends them", () => {
+    const a = at(raw("U1", "2026-10-24", { scheduleInternal: "2026-10-24T00:10:00" }));
+    const b = at(raw("U1", "2026-10-24", { scheduleInternal: "2026-10-24T00:14:00" }));
+    expect(new Date(predictPasses(a, b, 0.5)[0].time).toISOString()).toBe("2026-10-23T23:12:00.000Z");
   });
 });
 

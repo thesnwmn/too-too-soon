@@ -59,4 +59,4 @@ Linear is close at line speed. A train that stops at A reaches the bridge a litt
 - **No live data** (`systemStatus` says anything but `OK`, like `REALTIME_DATA_LIMITED` or `SCHEDULE_ONLY`): timetable times, marked as such.
 - **Engineering works**: diverted trains show as `DIVERTED` and are dropped. Replacement buses listed at a station are dropped too.
 - **Cancelled calls**: a train shown as `CANCELLED` at A or B is dropped. RTT doesn't say whether that means "won't stop" or "won't run", so a few trains that do pass are missed: the safer mistake at a bridge.
-- **The clocks changing**: times carry their offsets, so a train timed at 01:58+01:00 and 01:02+00:00 is four minutes apart, as it should be.
+- **The clocks changing**: the live API sends UK wall-clock times without an offset, so they're read as UK time (summer time included); a time with an offset is read as given. The one ambiguous hour when the clocks go back is read as its first, summer-time pass.

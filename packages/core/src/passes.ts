@@ -38,6 +38,28 @@ export interface Pass {
 /** A timing point's code, as RTT takes it: a TIPLOC (up to 7) or a CRS code (3). */
 export const isLocationCode = (code: string): boolean => /^[A-Z0-9]{3,7}$/.test(code);
 
+const london = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+
+/** How far UK time is ahead of UTC at an instant: 0 in winter, an hour in summer. */
+function londonOffset(utc: number): number {
+  const p = Object.fromEntries(london.formatToParts(new Date(utc)).map((x) => [x.type, x.value]));
+  const wall = Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day), Number(p.hour), Number(p.minute), Number(p.second));
+  return wall - Math.floor(utc / 1000) * 1000;
+}
+
+/**
+ * An RTT time as epoch ms. The spec allows an offset, but the live API sends UK wall-clock
+ * times without one ("2026-10-24T00:12:00"), which JavaScript would read as the machine's own
+ * zone: so a time without an offset is taken as UK time.
+ */
+export function rttTime(s: string): number {
+  if (/(Z|[+-]\d{2}:?\d{2})$/i.test(s)) return Date.parse(s);
+  const asUtc = Date.parse(`${s}Z`);
+  if (Number.isNaN(asUtc)) return NaN;
+  const guess = asUtc - londonOffset(asUtc);
+  return asUtc - londonOffset(guess);
+}
+
 interface Best {
   time: number;
   basis: Basis;
@@ -48,7 +70,7 @@ interface Best {
 /** The best known time for one activity: actual, then forecast, then estimate, then the timetable. */
 export function best(t: RttTimes | undefined): Best | undefined {
   if (!t || t.isCancelled) return undefined;
-  const at = (s: string | undefined) => (s ? Date.parse(s) : NaN);
+  const at = (s: string | undefined) => (s ? rttTime(s) : NaN);
   const candidates: [string | undefined, Basis][] = [
     [t.realtimeActual, "actual"],
     [t.realtimeForecast, "forecast"],
@@ -70,7 +92,7 @@ function scheduled(s: RttService): number | undefined {
   const td = s.temporalData;
   for (const t of [td?.pass, td?.arrival, td?.departure]) {
     const v = t?.scheduleInternal ?? t?.scheduleAdvertised;
-    if (v) return Date.parse(v);
+    if (v) return rttTime(v);
   }
   return undefined;
 }
