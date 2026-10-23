@@ -195,6 +195,7 @@ function setupView(): string {
         <label>Timing point B <input name="b" value="${val("b", s?.b)}" placeholder="WDON" required pattern="[A-Za-z0-9]{3,7}" autocapitalize="characters"></label>
         <label>Called <input name="bn" value="${val("bn", s?.bName)}" placeholder="Wimbledon" maxlength="60"></label>
       </div>
+      <button type="button" id="swap" class="ghost">Swap A and B</button>
       <label>How far from A to B is your spot? <output id="fout">${Math.round(Number(d?.f ?? s?.f ?? 0.5) * 100)}%</output>
         <input type="range" name="f" min="0" max="1" step="0.01" value="${val("f", s?.f ?? 0.5)}">
       </label>
@@ -221,6 +222,14 @@ function render(): void {
   });
   document.getElementById("refresh")?.addEventListener("click", () => void refresh());
   document.getElementById("pick")?.addEventListener("click", () => void pick());
+  document.getElementById("swap")?.addEventListener("click", () => {
+    const form = document.getElementById("setup") as HTMLFormElement;
+    const field = (n: string) => form.elements.namedItem(n) as HTMLInputElement;
+    for (const [x, y] of [["a", "b"], ["an", "bn"]]) [field(x).value, field(y).value] = [field(y).value, field(x).value];
+    const f = field("f");
+    f.value = String(Math.round((1 - Number(f.value)) * 100) / 100);
+    document.getElementById("fout")!.textContent = `${Math.round(Number(f.value) * 100)}%`;
+  });
   document.getElementById("cancel")?.addEventListener("click", () => {
     state.editing = false;
     state.draft = undefined;

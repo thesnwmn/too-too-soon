@@ -43,7 +43,7 @@ export function openPicker(root: HTMLElement, done: (picked: Picked | undefined)
     <div class="pick-actions"><button type="button" id="pick-me" class="ghost">Near me</button><button type="button" id="pick-use" disabled>Use this spot</button></div>`;
   const status = root.querySelector<HTMLElement>("#pick-status")!;
   const use = root.querySelector<HTMLButtonElement>("#pick-use")!;
-  const map = new maplibregl.Map({ container: "map", style: STYLE, center: [-1.9, 52.8], zoom: 5.5, attributionControl: { compact: true } });
+  const map = new maplibregl.Map({ container: "map", style: STYLE, center: [-1.9, 52.8], zoom: 5.5, attributionControl: { compact: false } });
   map.on("load", () => {
     map.addSource("railways", { type: "raster", tiles: RAILWAYS, tileSize: 256, maxzoom: 19, attribution: '<a href="https://www.openrailwaymap.org/">OpenRailwayMap</a>' });
     map.addLayer({ id: "railways", type: "raster", source: "railways", paint: { "raster-opacity": 0.85 } });
@@ -72,11 +72,24 @@ export function openPicker(root: HTMLElement, done: (picked: Picked | undefined)
         return;
       }
       markers.forEach((m) => m.remove());
+      const label = (text: string) => {
+        const el = document.createElement("div");
+        el.className = "map-label";
+        el.textContent = text;
+        return el;
+      };
       markers = [
         new maplibregl.Marker({ color: "#14532d" }).setLngLat([found.snapped.lon, found.snapped.lat]).addTo(map),
-        new maplibregl.Marker({ color: "#a16207", scale: 0.8 }).setLngLat([found.a.lon, found.a.lat]).addTo(map),
-        new maplibregl.Marker({ color: "#a16207", scale: 0.8 }).setLngLat([found.b.lon, found.b.lat]).addTo(map),
+        new maplibregl.Marker({ element: label(`A · ${found.a.name}`) }).setLngLat([found.a.lon, found.a.lat]).addTo(map),
+        new maplibregl.Marker({ element: label(`B · ${found.b.name}`) }).setLngLat([found.b.lon, found.b.lat]).addTo(map),
       ];
+      map.fitBounds(
+        [
+          [Math.min(found.a.lon, found.b.lon), Math.min(found.a.lat, found.b.lat)],
+          [Math.max(found.a.lon, found.b.lon), Math.max(found.a.lat, found.b.lat)],
+        ],
+        { padding: 60, maxZoom: 16 },
+      );
       picked = { a: found.a.code, b: found.b.code, f: Math.round(found.f * 100) / 100, aName: found.a.name, bName: found.b.name };
       const km = (m: number) => (m < 1000 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toFixed(1)} km`);
       status.innerHTML = `Between <b>${esc(found.a.name)}</b> (${km(found.a.along)} away) and <b>${esc(found.b.name)}</b> (${km(found.b.along)} away), on the track's timing points ${esc(found.a.code)} and ${esc(found.b.code)}.`;

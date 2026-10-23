@@ -86,7 +86,7 @@ export const mapLazy: Check = {
     const hits = files.flatMap((f) =>
       readFileSync(join(root, f), "utf8")
         .split("\n")
-        .flatMap((line, i) => (/^\s*import\s.*["'](maplibre-gl[^"']*|\.\/picker(\.ts)?)["']/.test(line) ? [`${f}:${i + 1}: ${line.trim()}`] : [])),
+        .flatMap((line, i) => (/^\s*(import|export)\s.*["'](maplibre-gl[^"']*|\.\/picker(\.ts)?)["']/.test(line) ? [`${f}:${i + 1}: ${line.trim()}`] : [])),
     );
     return hits.length ? fail(`${hits.length} static import${hits.length === 1 ? "" : "s"}`, hits.join("\n")) : pass(`${files.length} files`);
   },

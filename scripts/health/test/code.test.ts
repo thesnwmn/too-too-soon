@@ -51,5 +51,8 @@ describe("code/map-lazy", () => {
   it("passes when only the picker imports MapLibre, and the page loads it lazily", () =>
     expect(mapLazy.run(ctx(tmpDir({ ...picker, "web/src/main.ts": 'const { openPicker } = await import("./picker.ts");\n' }))).status).toBe("pass"));
   it("fails on MapLibre imported by the watch view", () => expect(mapLazy.run(ctx(tmpDir({ ...picker, "web/src/main.ts": 'import { Map } from "maplibre-gl";\n' }))).status).toBe("fail"));
-  it("fails on the picker imported statically", () => expect(mapLazy.run(ctx(tmpDir({ ...picker, "web/src/main.ts": 'import { openPicker } from "./picker.ts";\n' }))).status).toBe("fail"));
+  it("fails on the picker imported statically, or re-exported", () => {
+    expect(mapLazy.run(ctx(tmpDir({ ...picker, "web/src/main.ts": 'import { openPicker } from "./picker.ts";\n' }))).status).toBe("fail");
+    expect(mapLazy.run(ctx(tmpDir({ ...picker, "web/src/map.ts": 'export { Map } from "maplibre-gl";\n' }))).status).toBe("fail");
+  });
 });

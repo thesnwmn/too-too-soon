@@ -36,10 +36,11 @@ export interface Located {
   f: number;
 }
 
-/** The Overpass query for railway tracks and timing points within `radius` metres of a point. */
+/** The Overpass query for running lines and timing points within `radius` metres of a point. */
 export function overpassQuery(lat: number, lon: number, radius: number): string {
   const around = `(around:${Math.round(radius)},${lat.toFixed(6)},${lon.toFixed(6)})`;
-  return `[out:json][timeout:25];way["railway"="rail"]${around};out geom;node["ref:tiploc"]${around};out;`;
+  // Running lines only: sidings, yards and crossovers would snap a tap to the wrong track.
+  return `[out:json][timeout:25];way["railway"="rail"][!"service"]${around};out geom;node["ref:tiploc"]${around};out;`;
 }
 
 const R = 6_371_000;
@@ -66,81 +67,118 @@ function project(x: { lat: number; lon: number }, p: { lat: number; lon: number 
 /** A timing point's TIPLOC: the first, if the tag lists several. */
 const tiplocOf = (tags: Record<string, string> = {}) => (tags["ref:tiploc"] ?? "").split(";")[0].trim().toUpperCase();
 
-/** How close (metres) a timing point's node must be to the track to count as on it: stations are often mapped beside the rails. */
+/** How close (metres) a timing point's node must be to a track to count as on it: stations are often mapped beside the rails. */
 export const ATTACH_M = 250;
+
+interface Edge {
+  u: number;
+  v: number;
+  m: number;
+  p: { lat: number; lon: number };
+  q: { lat: number; lon: number };
+}
+interface Stop {
+  code: string;
+  name: string;
+  lat: number;
+  lon: number;
+  /** How far from the track the node is, to pick the closest of several at one place. */
+  gap: number;
+}
 
 /**
  * The timing points either side of a tap, along the track. Undefined when there's no track
  * within 200 m, or no timing point along it on one side within the data given.
+ *
+ * Each timing point hangs off every track segment within ATTACH_M (double track is two ways in
+ * OSM, and the tap may land on either), at the point along the segment nearest it. Then the
+ * track is walked both ways from the tap, and the nearest timing point found ahead on each side
+ * wins: "ahead" meaning it lies that side of the tap along the track's local direction, so a
+ * walk that loops back through a crossover can't find the other side's station.
  */
 export function locate(elements: OsmElement[], tap: { lat: number; lon: number }): Located | undefined {
-  // The track as a graph: vertices are OSM nodes, edges the segments of rail ways.
-  const pos = new Map<number, { lat: number; lon: number }>();
-  const adj = new Map<number, { to: number; m: number }[]>();
-  const link = (u: number, v: number, m: number) => {
-    if (!adj.has(u)) adj.set(u, []);
-    adj.get(u)!.push({ to: v, m });
-  };
-  let best: { u: number; v: number; t: number; d: number; lat: number; lon: number } | undefined;
+  const edges: Edge[] = [];
+  const adj = new Map<number, number[]>();
   for (const w of elements) {
     if (w.type !== "way" || !w.nodes || !w.geometry || w.nodes.length !== w.geometry.length) continue;
-    for (let i = 0; i < w.nodes.length; i++) pos.set(w.nodes[i], w.geometry[i]);
     for (let i = 1; i < w.nodes.length; i++) {
-      const u = w.nodes[i - 1], v = w.nodes[i];
-      const m = distance(w.geometry[i - 1], w.geometry[i]);
-      link(u, v, m);
-      link(v, u, m);
-      const p = project(tap, w.geometry[i - 1], w.geometry[i]);
-      const d = distance(tap, p);
-      if (!best || d < best.d) best = { u, v, t: p.t, d, lat: p.lat, lon: p.lon };
+      const e: Edge = { u: w.nodes[i - 1], v: w.nodes[i], m: distance(w.geometry[i - 1], w.geometry[i]), p: w.geometry[i - 1], q: w.geometry[i] };
+      const k = edges.push(e) - 1;
+      for (const n of [e.u, e.v]) {
+        if (!adj.has(n)) adj.set(n, []);
+        adj.get(n)!.push(k);
+      }
     }
   }
-  if (!best || best.d > 200) return undefined;
+  let snap: { e: number; t: number; d: number; lat: number; lon: number } | undefined;
+  edges.forEach((e, k) => {
+    const pr = project(tap, e.p, e.q);
+    const d = distance(tap, pr);
+    if (!snap || d < snap.d) snap = { e: k, t: pr.t, d, lat: pr.lat, lon: pr.lon };
+  });
+  if (!snap || snap.d > 200) return undefined;
+  const s0 = snap;
 
-  // Each timing point hangs off its nearest track vertex, if it's close enough.
-  const points = new Map<number, { code: string; name: string; lat: number; lon: number; gap: number }[]>();
+  // Timing points, on every segment near enough.
+  const onEdge = new Map<number, { t: number; stop: Stop }[]>();
   for (const n of elements) {
     const code = tiplocOf(n.tags);
     if (n.type !== "node" || !code || n.lat === undefined || n.lon === undefined) continue;
-    let near: { id: number; d: number } | undefined;
-    for (const [id, p] of pos) {
-      const d = distance(p, { lat: n.lat, lon: n.lon });
-      if (!near || d < near.d) near = { id, d };
-    }
-    if (!near || near.d > ATTACH_M) continue;
-    if (!points.has(near.id)) points.set(near.id, []);
-    points.get(near.id)!.push({ code, name: n.tags?.name ?? code, lat: n.lat, lon: n.lon, gap: near.d });
+    const at = { lat: n.lat, lon: n.lon };
+    edges.forEach((e, k) => {
+      const pr = project(at, e.p, e.q);
+      const gap = distance(at, pr);
+      if (gap > ATTACH_M) return;
+      if (!onEdge.has(k)) onEdge.set(k, []);
+      onEdge.get(k)!.push({ t: pr.t, stop: { code, name: n.tags?.name ?? code, lat: n.lat!, lon: n.lon!, gap } });
+    });
   }
 
-  // Walk the track from the snapped point, one way through u and the other through v.
-  const segment = distance(pos.get(best.u)!, pos.get(best.v)!);
-  const walk = (start: number, startM: number, blocked: number): TimingPoint | undefined => {
-    const dist = new Map<number, number>([[start, startM]]);
-    const done = new Set<number>([blocked]);
-    const queue: [number, number][] = [[startM, start]];
+  // Which way is "towards u" at the tap, flat-earth: a stop counts for a side only if it lies that way.
+  const se = edges[s0.e];
+  const k = Math.cos(rad(se.p.lat));
+  const dir = { x: (se.p.lon - se.q.lon) * k, y: se.p.lat - se.q.lat };
+  const side = (pt: { lat: number; lon: number }) => Math.sign((pt.lon - s0.lon) * k * dir.x + (pt.lat - s0.lat) * dir.y);
+
+  const walk = (sign: 1 | -1, strict = true): TimingPoint | undefined => {
+    let found: { m: number; stop: Stop } | undefined;
+    const consider = (m: number, stop: Stop) => {
+      if (strict && side(stop) !== sign && side(stop) !== 0) return;
+      if (!found || m < found.m - 1 || (Math.abs(m - found.m) <= 1 && stop.gap < found.stop.gap)) found = { m, stop };
+    };
+    // Stops on the tap's own segment, on this side of it.
+    for (const { t, stop } of onEdge.get(s0.e) ?? []) {
+      if (sign === 1 && t <= s0.t) consider((s0.t - t) * se.m, stop);
+      if (sign === -1 && t >= s0.t) consider((t - s0.t) * se.m, stop);
+    }
+    const start = sign === 1 ? se.u : se.v;
+    const dist = new Map<number, number>([[start, sign === 1 ? s0.t * se.m : (1 - s0.t) * se.m]]);
+    const done = new Set<number>();
+    const queue: [number, number][] = [[dist.get(start)!, start]];
     while (queue.length) {
       queue.sort((x, y) => x[0] - y[0]);
       const [m, id] = queue.shift()!;
       if (done.has(id)) continue;
+      if (found && m > found.m) break;
       done.add(id);
-      const here = points.get(id);
-      if (here) {
-        const p = here.sort((x, y) => x.gap - y.gap)[0];
-        return { code: p.code, name: p.name, lat: p.lat, lon: p.lon, along: m };
-      }
-      for (const e of adj.get(id) ?? []) {
+      for (const ek of adj.get(id) ?? []) {
+        if (ek === s0.e) continue;
+        const e = edges[ek];
+        const forward = e.u === id;
+        for (const { t, stop } of onEdge.get(ek) ?? []) consider(m + (forward ? t : 1 - t) * e.m, stop);
+        const other = forward ? e.v : e.u;
         const next = m + e.m;
-        if (!done.has(e.to) && next < (dist.get(e.to) ?? Infinity)) {
-          dist.set(e.to, next);
-          queue.push([next, e.to]);
+        if (!done.has(other) && next < (dist.get(other) ?? Infinity)) {
+          dist.set(other, next);
+          queue.push([next, other]);
         }
       }
     }
-    return undefined;
+    return found && { code: found.stop.code, name: found.stop.name, lat: found.stop.lat, lon: found.stop.lon, along: found.m };
   };
-  // A timing point on the snapped segment's own ends counts on its own side only.
-  const a = walk(best.u, best.t * segment, best.v);
-  const b = walk(best.v, (1 - best.t) * segment, best.u);
+  // On a curve sharp enough that a station lies "behind" the tap, try again without the side test.
+  const a = walk(1) ?? walk(1, false);
+  const b = walk(-1) ?? walk(-1, false);
   if (!a || !b || a.code === b.code) return undefined;
-  return { snapped: { lat: best.lat, lon: best.lon }, offTrack: best.d, a, b, f: a.along / (a.along + b.along) };
+  return { snapped: { lat: s0.lat, lon: s0.lon }, offTrack: s0.d, a, b, f: a.along / (a.along + b.along) };
 }

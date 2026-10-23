@@ -56,11 +56,38 @@ describe("locate", () => {
   it("copes with nothing", () => expect(locate([], at(1))).toBeUndefined());
 });
 
+describe("locate on real-shaped track", () => {
+  // Double track: the down line and the up line about 11 m apart, as two ways, stations beside them.
+  const down = way(10, [0, 1, 2, 3, 4, 5, 6], 300);
+  const up = way(11, [0, 1, 2, 3, 4, 5, 6], 400, 0.0001);
+  const crossover: OsmElement = { type: "way", id: 12, tags: { railway: "rail" }, nodes: [301, 401], geometry: [at(1), at(1, 0.0001)] };
+  const stations = [tiploc(9101, "FARA", "Far A", 0, 0.0003), tiploc(9102, "NEARB", "Near B", 3, 0.0003)];
+  it("works whichever line of double track the tap lands on", () => {
+    for (const tap of [at(1.5), at(1.5, 0.0001)]) expect(locate([down, up, ...stations], tap)).toMatchObject({ a: { code: "FARA" }, b: { code: "NEARB" } });
+  });
+  it("isn't fooled into the other side's station by a crossover loop", () => {
+    for (const tap of [at(1.5), at(1.5, 0.0001), at(0.5), at(0.5, 0.0001)]) expect(locate([down, up, crossover, ...stations], tap)).toMatchObject({ a: { code: "FARA" }, b: { code: "NEARB" } });
+  });
+  it("finds a halt partway along a long straight segment", () => {
+    const long = way(20, [0, 2, 4], 500);
+    const r = locate([long, tiploc(9201, "AA", "A", 0), tiploc(9202, "BB", "Halt", 1, 0.0002), tiploc(9203, "CC", "C", 4)], at(1.5))!;
+    expect(r.a.code).toBe("BB");
+    expect(r.b.code).toBe("CC");
+    expect(r.f).toBeCloseTo(0.2, 1);
+  });
+  it("finds a station around a sharp curve", () => {
+    // Out east, then hairpin back west 600 m north: B lies 'behind' the tap as the crow flies.
+    const hairpin: OsmElement = { type: "way", id: 30, tags: {}, nodes: [601, 602, 603, 604], geometry: [at(0), at(2), at(2, 0.0054), at(0, 0.0054)] };
+    const r = locate([hairpin, tiploc(9301, "WEST", "West", 0, 0.0001), tiploc(9302, "NORTH", "North", 0, 0.0055)], at(1))!;
+    expect([r.a.code, r.b.code].sort()).toEqual(["NORTH", "WEST"]);
+  });
+});
+
 describe("geometry and the query", () => {
   it("measures 500 m steps", () => expect(distance(at(0), at(1))).toBeCloseTo(500, -1));
   it("asks for rail ways with geometry and TIPLOC nodes around the tap", () => {
     const q = overpassQuery(51.5, -0.2, 4000);
-    expect(q).toContain('way["railway"="rail"](around:4000,51.500000,-0.200000);out geom;');
+    expect(q).toContain('way["railway"="rail"][!"service"](around:4000,51.500000,-0.200000);out geom;');
     expect(q).toContain('node["ref:tiploc"](around:4000,51.500000,-0.200000);out;');
   });
 });
