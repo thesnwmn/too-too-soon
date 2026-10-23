@@ -59,7 +59,8 @@ too-too-soon/
     health/                 the health check and its checks (`pnpm health`)
   .claude/                  the studio's wiring: role briefs (agents/) and commands (skills/)
   .github/
-    workflows/              CI, the PR title check, the deploy (Worker) and the demo (Pages)
+    workflows/              CI, the PR title check, the deploy (Worker), the demo (Pages), and the probe of the live site
+    scripts/                the deploy summary and the probe, in Node
     pull_request_template.md
 ```
 

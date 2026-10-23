@@ -1,0 +1,37 @@
+name: Probe
+
+# Asks the live Worker what it sees, from GitHub's runners (sessions can't always reach
+# workers.dev): /api/info, then /api/next for a spot. Run it by hand, from the Actions tab or a session.
+on:
+  workflow_dispatch:
+    inputs:
+      a:
+        description: Timing point A (TIPLOC or station code)
+        default: CLJ
+      b:
+        description: Timing point B (TIPLOC or station code)
+        default: EAD
+      f:
+        description: How far from A to B, 0 to 1
+        default: "0.5"
+      url:
+        description: The site
+        default: https://too-too-soon.justin-fc2.workers.dev
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - run: node .github/scripts/probe.mjs
+        env:
+          A: ${{ inputs.a }}
+          B: ${{ inputs.b }}
+          F: ${{ inputs.f }}
+          SITE: ${{ inputs.url }}

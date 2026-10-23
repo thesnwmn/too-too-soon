@@ -82,29 +82,4 @@ jobs:
         env:
           URL: ${{ steps.deploy.outputs.url }}
           HAS_RTT: ${{ steps.ready.outputs.rtt }}
-        run: |
-          info=""
-          if [ "$HAS_RTT" = "true" ] && [ -n "$URL" ]; then
-            # The secret put rolls out a new version: give it a moment to answer as configured.
-            for i in 1 2 3 4 5 6; do
-              info=$(curl -s --max-time 20 "$URL/api/info" || true)
-              case "$info" in *'"configured":true'*) break ;; esac
-              sleep 10
-            done
-          fi
-          {
-            echo "## Deployed"
-            echo
-            echo "**Site:** ${URL:-see the deploy step's log}"
-            if [ "$HAS_RTT" != "true" ]; then
-              echo
-              echo "No \`RTT_TOKEN\` secret yet, so the site has no live data. See studio/producer-guide.md#one-time-setup."
-            elif [ -n "$info" ]; then
-              echo
-              echo "**/api/info** (\`detailed: true\` means passing trains are included):"
-              echo
-              echo '```json'
-              echo "$info"
-              echo '```'
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
+        run: node .github/scripts/summary.mjs
