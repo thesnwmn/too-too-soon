@@ -1,0 +1,19 @@
+{
+  "name": "@too-too-soon/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The page: the next trains past your spot, with countdowns. Calls only the Worker's /api.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc -p .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@too-too-soon/core": "workspace:*"
+  },
+  "devDependencies": {
+    "vite": "8.3.4"
+  }
+}
