@@ -37,6 +37,8 @@ The cache is a Map in the Worker's memory, in front of the Workers Cache API. On
 
 `web/`, Vite and plain TypeScript. A watch view (a big countdown, the direction, then the next few trains), a set-up form, and a demo mode with recorded data that needs no Worker. Installable on the home screen.
 
+The map picker is a separate chunk (MapLibre, about 1 MB), loaded only when it's opened (the health check's `code/map-lazy` keeps it that way). It's the one part of the page that talks to anything but the Worker: map tiles from OpenFreeMap, the railway overlay from OpenRailwayMap, and an Overpass query per tap (a second, wider one if the first finds no timing points), all straight from the browser and all free for light use. Each is credited on the map.
+
 ## Hosting
 
 One Cloudflare Worker serves the page and the API, deployed from GitHub Actions on every merge to `main` ([why](decisions/2026-10-23-one-worker.md)). The same page is also built to GitHub Pages in demo mode, so it can be tried before the accounts exist.

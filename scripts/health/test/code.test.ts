@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { noDom, noToken, typecheck, wrangler } from "../src/code.ts";
+import { mapLazy, noDom, noToken, typecheck, wrangler } from "../src/code.ts";
 import { ctx, fakeShell, tmpDir } from "./fixture.ts";
 
 describe("code/typecheck (and the other pnpm runs)", () => {
@@ -44,4 +44,15 @@ describe("code/wrangler", () => {
   it("passes on a config that serves the page and keeps no secrets", () => expect(wrangler.run(ctx(tmpDir({ "worker/wrangler.toml": good }))).status).toBe("pass"));
   it("fails on the token in config", () => expect(wrangler.run(ctx(tmpDir({ "worker/wrangler.toml": good + '[vars]\nRTT_TOKEN = "abc"\n' }))).detail).toMatch(/secret/));
   it("fails when the API isn't routed to the Worker first", () => expect(wrangler.run(ctx(tmpDir({ "worker/wrangler.toml": '[assets]\ndirectory = "../web/dist"\n' }))).status).toBe("fail"));
+});
+
+describe("code/map-lazy", () => {
+  const picker = { "web/src/picker.ts": 'import * as maplibregl from "maplibre-gl";\nimport "maplibre-gl/dist/maplibre-gl.css";\n' };
+  it("passes when only the picker imports MapLibre, and the page loads it lazily", () =>
+    expect(mapLazy.run(ctx(tmpDir({ ...picker, "web/src/main.ts": 'const { openPicker } = await import("./picker.ts");\n' }))).status).toBe("pass"));
+  it("fails on MapLibre imported by the watch view", () => expect(mapLazy.run(ctx(tmpDir({ ...picker, "web/src/main.ts": 'import { Map } from "maplibre-gl";\n' }))).status).toBe("fail"));
+  it("fails on the picker imported statically, or re-exported", () => {
+    expect(mapLazy.run(ctx(tmpDir({ ...picker, "web/src/main.ts": 'import { openPicker } from "./picker.ts";\n' }))).status).toBe("fail");
+    expect(mapLazy.run(ctx(tmpDir({ ...picker, "web/src/map.ts": 'export { Map } from "maplibre-gl";\n' }))).status).toBe("fail");
+  });
 });

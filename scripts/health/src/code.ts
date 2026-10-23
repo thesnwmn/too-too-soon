@@ -73,5 +73,24 @@ export const wrangler: Check = {
   },
 };
 
+/** The map picker, the only page code that may load MapLibre, and only by a dynamic import. */
+export const PICKER = "web/src/picker.ts";
+
+export const mapLazy: Check = {
+  id: "code/map-lazy",
+  tier: 4,
+  repro: `grep -rn "maplibre-gl\\|picker" web/src`,
+  hint: "MapLibre is about 1 MB: only web/src/picker.ts imports it, and the rest of the page loads the picker with import(\"./picker.ts\"), so the watch view stays small on a phone at the bridge.",
+  run({ root }) {
+    const files = sourceFiles(root, "web/src").filter((f) => f !== PICKER);
+    const hits = files.flatMap((f) =>
+      readFileSync(join(root, f), "utf8")
+        .split("\n")
+        .flatMap((line, i) => (/^\s*(import|export)\s.*["'](maplibre-gl[^"']*|\.\/picker(\.ts)?)["']/.test(line) ? [`${f}:${i + 1}: ${line.trim()}`] : [])),
+    );
+    return hits.length ? fail(`${hits.length} static import${hits.length === 1 ? "" : "s"}`, hits.join("\n")) : pass(`${files.length} files`);
+  },
+};
+
 // Cheap scans first, so a broken convention shows before the slow runs.
-export const CODE = [noToken, noDom, wrangler, typecheck, test, build];
+export const CODE = [noToken, noDom, wrangler, mapLazy, typecheck, test, build];

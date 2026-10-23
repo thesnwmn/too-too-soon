@@ -21,6 +21,8 @@ interface State {
   demoWhy?: string;
   /** The Worker has no token yet: point at the demo. */
   notSetUp?: boolean;
+  /** The map picker has the screen. */
+  picking?: boolean;
   loading: boolean;
   editing: boolean;
 }
@@ -180,7 +182,8 @@ function setupView(): string {
   const v = (x: string | number | undefined) => (x === undefined ? "" : esc(String(x)));
   const val = (k: string, x: string | number | undefined) => v(d ? d[k] : x);
   return `<header><h1>Too Too Soon</h1>${s ? `<button type="button" id="cancel" class="ghost">Cancel</button>` : ""}</header>
-    <p class="intro">How long till the next too too? Set up the spot you watch trains from, between two <b>timing points</b>: the stations or junctions either side, by their TIPLOC codes (on <a href="https://www.realtimetrains.co.uk/">Realtime Trains</a>, a location's detailed view shows it).</p>
+    <p class="intro">How long till the next too too? Set up the spot you watch trains from: tap it on a map, or type the <b>timing points</b> either side (stations or junctions, by their TIPLOC or station codes).</p>
+    <button type="button" id="pick" class="wide">Pick on a map</button>
     ${state.error ? `<p class="note">${esc(state.error)}</p>` : ""}
     <form id="setup">
       <label>Name <input name="name" value="${val("name", s?.name)}" placeholder="Our bridge" maxlength="60"></label>
@@ -192,6 +195,7 @@ function setupView(): string {
         <label>Timing point B <input name="b" value="${val("b", s?.b)}" placeholder="WDON" required pattern="[A-Za-z0-9]{3,7}" autocapitalize="characters"></label>
         <label>Called <input name="bn" value="${val("bn", s?.bName)}" placeholder="Wimbledon" maxlength="60"></label>
       </div>
+      <button type="button" id="swap" class="ghost">Swap A and B</button>
       <label>How far from A to B is your spot? <output id="fout">${Math.round(Number(d?.f ?? s?.f ?? 0.5) * 100)}%</output>
         <input type="range" name="f" min="0" max="1" step="0.01" value="${val("f", s?.f ?? 0.5)}">
       </label>
@@ -201,6 +205,7 @@ function setupView(): string {
 }
 
 function render(): void {
+  if (state.picking) return;
   const now = Date.now();
   app.innerHTML = state.spot && !state.editing ? watchView(state.spot, now) : setupView();
   document.getElementById("edit")?.addEventListener("click", () => {
@@ -216,6 +221,15 @@ function render(): void {
     render();
   });
   document.getElementById("refresh")?.addEventListener("click", () => void refresh());
+  document.getElementById("pick")?.addEventListener("click", () => void pick());
+  document.getElementById("swap")?.addEventListener("click", () => {
+    const form = document.getElementById("setup") as HTMLFormElement;
+    const field = (n: string) => form.elements.namedItem(n) as HTMLInputElement;
+    for (const [x, y] of [["a", "b"], ["an", "bn"]]) [field(x).value, field(y).value] = [field(y).value, field(x).value];
+    const f = field("f");
+    f.value = String(Math.round((1 - Number(f.value)) * 100) / 100);
+    document.getElementById("fout")!.textContent = `${Math.round(Number(f.value) * 100)}%`;
+  });
   document.getElementById("cancel")?.addEventListener("click", () => {
     state.editing = false;
     state.draft = undefined;
@@ -260,6 +274,32 @@ window.setInterval(() => {
   if (text === "gone") render();
   else el.textContent = text;
 }, 1000);
+
+// ---- the map picker, loaded only when it's wanted ----
+
+async function pick(): Promise<void> {
+  // Keep what's typed, so Cancel (or a pick) comes back to it.
+  const form = document.getElementById("setup") as HTMLFormElement | null;
+  if (form) state.draft = Object.fromEntries([...new FormData(form)].map(([k, x]) => [k, String(x)]));
+  const name = (state.draft?.name ?? "").trim();
+  state.picking = true;
+  app.innerHTML = `<p class="hint">Loading the map…</p>`;
+  try {
+    const { openPicker } = await import("./picker.ts");
+    openPicker(app, (picked) => {
+      state.picking = false;
+      if (picked) {
+        state.error = undefined;
+        state.draft = { ...state.draft, name: name || `Between ${picked.aName} and ${picked.bName}`, a: picked.a, b: picked.b, f: String(picked.f), an: picked.aName, bn: picked.bName };
+      }
+      render();
+    });
+  } catch {
+    state.picking = false;
+    state.error = "Couldn't load the map: no signal? You can type the codes instead.";
+    render();
+  }
+}
 
 // ---- start ----
 
