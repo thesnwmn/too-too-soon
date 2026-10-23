@@ -3,8 +3,9 @@ title: Predict pass times from two timing points
 kind: build
 role: engineer
 size: M
-status: ready
+status: doing
 milestone: m1-first-trains
+pr: 2
 ---
 
 ## Why
