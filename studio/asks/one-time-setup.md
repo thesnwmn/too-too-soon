@@ -1,7 +1,7 @@
 ---
 title: Will you set up the free accounts and secrets the live site needs?
 from: release
-status: open
+status: answered
 blocks: [go-live]
 default: None. Until it's done, the site runs only as a demo with recorded trains.
 gated: true                 # accounts and secrets only the producer can create
@@ -14,3 +14,6 @@ While you do it, it's worth checking one thing on the API portal: whether your p
 Options:
 - **Do it now** (recommended), then say so with `/needs-me` or `/director`.
 - **Later**: the studio carries on building, and the demo shows what it'll look like.
+
+## Answer
+2026-10-23: "I've set up things, can you try?", then "I've changed the RTT token" (the first secret was the token's ID; RTT said so through `/api/info`). The Worker is live at too-too-soon.justin-fc2.workers.dev with a refresh token that swaps fine. The token has no entitlements, so no detailed mode: see [detailed-mode](detailed-mode.md).

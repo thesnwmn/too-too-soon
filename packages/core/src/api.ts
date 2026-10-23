@@ -12,6 +12,8 @@ export interface NextResponse {
   stale?: boolean;
   /** RTT says its live data is limited: times may be timetable only. */
   limited?: boolean;
+  /** The token has no detailed mode, so only trains that stop at both points are listed. */
+  stoppingOnly?: boolean;
 }
 
 export interface ErrorResponse {

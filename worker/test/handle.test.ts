@@ -79,6 +79,16 @@ describe("/api/next", () => {
     expect(rtt.calls.filter((c) => c.url.includes("get_access_token"))).toHaveLength(1);
     expect(rtt.calls.filter((c) => c.url.includes("/gb-nr/location")).every((c) => c.auth === "Bearer short-life")).toBe(true);
   });
+  it("says when only stopping trains can be listed", async () => {
+    const rtt = fakeRtt({ refresh: true });
+    const fetch = rtt.deps.fetch;
+    rtt.deps.fetch = (async (input: RequestInfo | URL, init?: RequestInit) =>
+      String(input).includes("get_access_token") ? Response.json({ token: "t", validUntil: new Date(NOW + 3600_000).toISOString(), entitlements: [] }) : fetch(input, init)) as typeof globalThis.fetch;
+    expect(((await (await handle(get(SPOT), env, rtt.deps)).json()) as NextResponse).stoppingOnly).toBe(true);
+    resetRtt();
+    const detailed = fakeRtt({ refresh: true });
+    expect(((await (await handle(get(SPOT), env, detailed.deps)).json()) as NextResponse).stoppingOnly).toBeUndefined();
+  });
   it("swaps the refresh token again once the access token runs out", async () => {
     const rtt = fakeRtt({ refresh: true });
     await handle(get(SPOT), env, rtt.deps);
