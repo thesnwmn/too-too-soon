@@ -1,6 +1,6 @@
 // Tier 4, code: it type-checks, the tests pass, the site builds, and the conventions in
 // CLAUDE.md that a script can test still hold.
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { type Check, type Ctx, fail, findInCode, pass, sourceFiles, tail } from "./check.ts";
 
@@ -54,5 +54,24 @@ export const noDom: Check = {
   },
 };
 
+export const WRANGLER = "worker/wrangler.toml";
+
+export const wrangler: Check = {
+  id: "code/wrangler",
+  tier: 4,
+  repro: `cat ${WRANGLER}`,
+  hint: "The Worker's config serves the page from web/dist and holds no secrets: RTT_TOKEN is a Worker secret, set by .github/workflows/deploy.yml from the GitHub secret. See docs/architecture.md#the-token-rule.",
+  run({ root }) {
+    const path = join(root, WRANGLER);
+    if (!existsSync(path)) return pass("no Worker");
+    const toml = readFileSync(path, "utf8").replace(/#.*$/gm, "");
+    const problems: string[] = [];
+    if (/RTT_TOKEN/.test(toml)) problems.push("names RTT_TOKEN: it's a secret, never config");
+    if (!/^\s*directory\s*=\s*"\.\.\/web\/dist"/m.test(toml)) problems.push('assets directory isn\'t "../web/dist"');
+    if (!/run_worker_first\s*=\s*\[\s*"\/api\/\*"\s*\]/.test(toml)) problems.push('run_worker_first isn\'t ["/api/*"], so the API might be served as the page');
+    return problems.length ? fail(problems.join("; ")) : pass();
+  },
+};
+
 // Cheap scans first, so a broken convention shows before the slow runs.
-export const CODE = [noToken, noDom, typecheck, test, build];
+export const CODE = [noToken, noDom, wrangler, typecheck, test, build];
