@@ -3,9 +3,9 @@ title: The studio harness, cut down from pixelbob
 kind: tidy
 role: director
 size: M
-status: doing
+status: done
 milestone: m1-first-trains
-pr: 0
+pr: 1
 ---
 
 ## Why
@@ -21,3 +21,4 @@ The producer wants the site built with as little of their guidance as possible. 
 PR previews, the studio page, the docs-in-step and gate checks (ideas on the board).
 
 ## Log
+- 2026-10-23 done, #1: harness ported with six roles; [session log](../sessions/2026-10-23-2230-studio-harness.md).
