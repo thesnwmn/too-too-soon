@@ -15,6 +15,12 @@ interface State {
   spot?: Spot;
   data?: NextResponse;
   error?: string;
+  /** What the set-up form held when it was turned down, so nothing typed is lost. */
+  draft?: Record<string, string>;
+  /** Why this is the demo, when it wasn't asked for. */
+  demoWhy?: string;
+  /** The Worker has no token yet: point at the demo. */
+  notSetUp?: boolean;
   loading: boolean;
   editing: boolean;
 }
@@ -76,12 +82,14 @@ async function refresh(): Promise<void> {
       const r = await fetch(`api/next?${spotParams(spot)}`, { headers: { Accept: "application/json" } });
       const type = r.headers.get("Content-Type") ?? "";
       if (!type.includes("json")) {
-        // No Worker behind this page (a static host): show the demo, and say so.
+        // No Worker behind this page (a static host): show the demo's own made-up spot, and say why.
         demo = true;
-        state.error = "There's no live data here, so this is the demo.";
+        state.demoWhy = "There's no live data on this site, so here's the demo: made-up trains on a made-up line.";
+        useSpot(DEMO_SPOT, false);
         state.data = demoData(Date.now());
       } else {
         const body = (await r.json()) as NextResponse | ErrorResponse;
+        state.notSetUp = r.status === 503;
         if ("error" in body) state.error = body.error;
         else {
           state.data = body;
@@ -122,7 +130,8 @@ function watchView(spot: Spot, now: number): string {
   const passes = data ? upcoming(data.passes, now, 15_000) : [];
   const [next, ...rest] = passes;
   let hero: string;
-  if (!data) hero = `<p class="hint">${state.error ? esc(state.error) : "Looking for trains…"}</p>`;
+  if (!data && state.notSetUp) hero = `<p class="hint">The live train data isn't set up yet. <a href="?demo">Try the demo</a> to see what it'll look like.</p>`;
+  else if (!data) hero = `<p class="hint">${state.error ? esc(state.error) : "Looking for trains…"}</p>`;
   else if (!next) hero = `<p class="hint">No trains due in the next hour or so.</p>`;
   else {
     const d = direction(next, spot, { a: data.aName, b: data.bName });
@@ -136,7 +145,7 @@ function watchView(spot: Spot, now: number): string {
   }
   const age = data ? Math.round((now - data.generatedAt) / 60_000) : 0;
   const notes = [
-    demo && `Demo: made-up trains on a made-up line. <a href="?">Set up your spot</a>.`,
+    demo && `${state.demoWhy ? esc(state.demoWhy) : "Demo: made-up trains on a made-up line."} <a href="?">Set up your spot</a>.`,
     state.error && data && esc(state.error),
     data?.stale && `Couldn't ask Realtime Trains just now: this list is from ${age} min ago.`,
     data?.limited && "Realtime Trains says its live data is limited: times may be timetable only.",
@@ -156,22 +165,24 @@ function watchView(spot: Spot, now: number): string {
 
 function setupView(): string {
   const s = state.spot;
+  const d = state.draft;
   const v = (x: string | number | undefined) => (x === undefined ? "" : esc(String(x)));
+  const val = (k: string, x: string | number | undefined) => v(d ? d[k] : x);
   return `<header><h1>Too Too Soon</h1></header>
     <p class="intro">How long till the next too too? Set up the spot you watch trains from, between two <b>timing points</b>: the stations or junctions either side, by their TIPLOC codes (on <a href="https://www.realtimetrains.co.uk/">Realtime Trains</a>, a location's detailed view shows it).</p>
     ${state.error ? `<p class="note">${esc(state.error)}</p>` : ""}
     <form id="setup">
-      <label>Name <input name="name" value="${v(s?.name)}" placeholder="Our bridge" maxlength="60"></label>
+      <label>Name <input name="name" value="${val("name", s?.name)}" placeholder="Our bridge" maxlength="60"></label>
       <div class="pair">
-        <label>Timing point A <input name="a" value="${v(s?.a)}" placeholder="CLPHMJN" required pattern="[A-Za-z0-9]{3,7}" autocapitalize="characters"></label>
-        <label>Called <input name="an" value="${v(s?.aName)}" placeholder="London" maxlength="60"></label>
+        <label>Timing point A <input name="a" value="${val("a", s?.a)}" placeholder="CLPHMJN" required pattern="[A-Za-z0-9]{3,7}" autocapitalize="characters"></label>
+        <label>Called <input name="an" value="${val("an", s?.aName)}" placeholder="London" maxlength="60"></label>
       </div>
       <div class="pair">
-        <label>Timing point B <input name="b" value="${v(s?.b)}" placeholder="WDON" required pattern="[A-Za-z0-9]{3,7}" autocapitalize="characters"></label>
-        <label>Called <input name="bn" value="${v(s?.bName)}" placeholder="Wimbledon" maxlength="60"></label>
+        <label>Timing point B <input name="b" value="${val("b", s?.b)}" placeholder="WDON" required pattern="[A-Za-z0-9]{3,7}" autocapitalize="characters"></label>
+        <label>Called <input name="bn" value="${val("bn", s?.bName)}" placeholder="Wimbledon" maxlength="60"></label>
       </div>
-      <label>How far from A to B is your spot? <output id="fout">${Math.round((s?.f ?? 0.5) * 100)}%</output>
-        <input type="range" name="f" min="0" max="1" step="0.01" value="${s?.f ?? 0.5}">
+      <label>How far from A to B is your spot? <output id="fout">${Math.round(Number(d?.f ?? s?.f ?? 0.5) * 100)}%</output>
+        <input type="range" name="f" min="0" max="1" step="0.01" value="${val("f", s?.f ?? 0.5)}">
       </label>
       <button type="submit">Show the trains</button>
     </form>
@@ -183,8 +194,11 @@ function render(): void {
   app.innerHTML = state.spot && !state.editing ? watchView(state.spot, now) : setupView();
   document.getElementById("edit")?.addEventListener("click", () => {
     if (demo) {
+      // Leaving the demo: the link shouldn't bring it back on a reload.
       demo = false;
+      state.demoWhy = undefined;
       state.spot = readSaved();
+      history.replaceState(null, "", location.pathname);
     }
     state.editing = true;
     state.error = undefined;
@@ -203,8 +217,10 @@ function render(): void {
       const r = parseSpot(q);
       if ("error" in r) {
         state.error = r.error;
+        state.draft = Object.fromEntries([...fd].map(([k, x]) => [k, String(x)]));
         return render();
       }
+      state.draft = undefined;
       state.editing = false;
       state.data = undefined;
       state.error = undefined;
