@@ -21,7 +21,7 @@ A small web site for one job: pick a spot on the railway (a bridge you watch fro
 - **The token rule.** The Realtime Trains token lives only in the Worker's secrets (`RTT_TOKEN`). Nothing in `web/` talks to `data.rtt.io` or carries a token or auth header; the page only calls the Worker's `/api/…`. RTT revokes tokens found in pages. The health check (`code/no-token-in-page`) enforces it.
 - `packages/core` has no DOM and no fetch: it's pure functions over RTT's JSON, so it runs in the Worker, the page and Node tests.
 - Tests never call the live API: they use recorded-shape fixtures and a fixed clock.
-- Times are ISO 8601 with offsets from RTT; work in epoch milliseconds inside, and format for `Europe/London` only for display.
+- RTT's live API sends UK wall-clock times without an offset (its spec allows one): read them with `rttTime` in `packages/core`, never `Date.parse`. Work in epoch milliseconds inside, and format for `Europe/London` only for display.
 - Only erasable TypeScript syntax (no enums, no parameter properties): `erasableSyntaxOnly` is on so Node can run `.ts` files directly.
 - Free to run: Cloudflare's and GitHub's free tiers, RTT's free personal plan. Respect RTT's rate limits: the Worker caches per spot.
 - Credit Realtime Trains, Network Rail and OpenStreetMap where their data shows.

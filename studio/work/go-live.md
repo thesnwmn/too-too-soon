@@ -21,3 +21,4 @@ Accuracy tuning (`its-here`).
 
 ## Log
 - 2026-10-23 first deploy (producer set up the accounts): the Worker is live at too-too-soon.justin-fc2.workers.dev and has the token, but RTT answers 401. #6 tidies the pasted token and makes `/api/info` say how it was taken and what RTT said; `probe.yml` reads it from GitHub's runners, since sessions can't reach workers.dev.
+- 2026-10-23 with the right token (the first was the token's ID): `/api/info` ok, swapped as a refresh token, entitlements `[]` (no detailed mode). The probe got 13 real trains Clapham Junction to Earlsfield, all stopping at both, an hour out: the live API's times have no offset. #7 reads them as UK time.
