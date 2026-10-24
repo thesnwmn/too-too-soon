@@ -1,5 +1,6 @@
 // From a tap on the map to a spot: snap to the nearest railway track in OpenStreetMap, walk
-// the track both ways to the nearest timing points (nodes tagged ref:tiploc), and measure how
+// the track both ways to the nearest timing points (nodes tagged ref:tiploc, or failing that
+// stations tagged ref:crs, which RTT also takes), and measure how
 // far along from A to B the tap is. Pure: the page asks Overpass and hands the answer in.
 // See docs/how-it-works.md#setting-up-a-spot.
 
@@ -40,7 +41,8 @@ export interface Located {
 export function overpassQuery(lat: number, lon: number, radius: number): string {
   const around = `(around:${Math.round(radius)},${lat.toFixed(6)},${lon.toFixed(6)})`;
   // Running lines only: sidings, yards and crossovers would snap a tap to the wrong track.
-  return `[out:json][timeout:25];way["railway"="rail"][!"service"]${around};out geom;node["ref:tiploc"]${around};out;`;
+  // TIPLOCs are patchy in OSM (none for miles around Woking), but stations nearly always have a CRS code.
+  return `[out:json][timeout:25];way["railway"="rail"][!"service"]${around};out geom;(node["ref:tiploc"]${around};node["railway"~"^(station|halt)$"]["ref:crs"]${around};);out;`;
 }
 
 const R = 6_371_000;
@@ -64,8 +66,8 @@ function project(x: { lat: number; lon: number }, p: { lat: number; lon: number 
   return { t, lat: p.lat + t * (q.lat - p.lat), lon: p.lon + t * (q.lon - p.lon) };
 }
 
-/** A timing point's TIPLOC: the first, if the tag lists several. */
-const tiplocOf = (tags: Record<string, string> = {}) => (tags["ref:tiploc"] ?? "").split(";")[0].trim().toUpperCase();
+/** A timing point's code for RTT: its TIPLOC (the first, if it lists several), or else a station's CRS code. */
+const tiplocOf = (tags: Record<string, string> = {}) => (tags["ref:tiploc"] || tags["ref:crs"] || "").split(";")[0].trim().toUpperCase();
 
 /** How close (metres) a timing point's node must be to a track to count as on it: stations are often mapped beside the rails. */
 export const ATTACH_M = 250;

@@ -54,6 +54,11 @@ describe("locate", () => {
   it("gives up with no timing point on one side", () => expect(locate([way(1, [0, 1, 2], 100), tiploc(9001, "ASHBYJN", "Ashby", 0)], at(1))).toBeUndefined());
   it("ignores a timing point too far from any track", () => expect(locate([...LINE.slice(0, 3), tiploc(9002, "BRMFD", "Bramford", 4, 0.01), tiploc(9001, "ASHBYJN", "Ashby", 0)], at(1))).toBeUndefined());
   it("copes with nothing", () => expect(locate([], at(1))).toBeUndefined());
+  it("uses a station's CRS code where there's no TIPLOC, and prefers the TIPLOC where there's both", () => {
+    const crs = (id: number, code: string, name: string, x: number, tiploc?: string): OsmElement => ({ type: "node", id, ...at(x, 0.0004), tags: { railway: "station", "ref:crs": code, name, ...(tiploc && { "ref:tiploc": tiploc }) } });
+    const r = locate([...LINE.slice(0, 2), crs(9501, "WOK", "Woking", 0), crs(9502, "BKO", "Brookwood", 4, "BRKWOOD")], at(1.8))!;
+    expect([r.a.code, r.b.code]).toEqual(["WOK", "BRKWOOD"]);
+  });
 });
 
 describe("locate on real-shaped track", () => {
@@ -88,6 +93,7 @@ describe("geometry and the query", () => {
   it("asks for rail ways with geometry and TIPLOC nodes around the tap", () => {
     const q = overpassQuery(51.5, -0.2, 4000);
     expect(q).toContain('way["railway"="rail"][!"service"](around:4000,51.500000,-0.200000);out geom;');
-    expect(q).toContain('node["ref:tiploc"](around:4000,51.500000,-0.200000);out;');
+    expect(q).toContain('node["ref:tiploc"](around:4000,51.500000,-0.200000);');
+    expect(q).toContain('node["railway"~"^(station|halt)$"]["ref:crs"](around:4000,51.500000,-0.200000);');
   });
 });
