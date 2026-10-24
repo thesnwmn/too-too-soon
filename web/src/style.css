@@ -139,7 +139,7 @@ label { display: grid; gap: 4px; font-weight: 600; }
 .mode legend { font-weight: 600; padding: 0; margin-bottom: 4px; }
 .mode label { display: flex; align-items: center; gap: 8px; font-weight: 400; border: 2px solid var(--line); border-radius: 12px; padding: 8px 14px; min-height: 44px; }
 .mode label:has(input:checked) { border-color: var(--accent); background: var(--card); font-weight: 600; }
-.mode input { accent-color: var(--accent); width: 20px; height: 20px; min-height: 0; margin: 0; }
+.mode input { accent-color: var(--brand-ink); width: 20px; height: 20px; min-height: 0; margin: 0; }
 form[data-mode="one"] .two-only, form[data-mode="two"] .one-only { display: none; }
 form .two-only:not(span) { display: grid; gap: 14px; }
 /* Needed: the rule above outranks the plain hide for the B block. */

@@ -46,6 +46,7 @@ describe("the words", () => {
     // One that ends its journey here isn't heading anywhere.
     expect(towardsText(direction(pass({ direction: "at", endsHere: true, destination: "Woking", stopsBefore: true }), spot))).toBe("ends here");
     expect(stopping(pass({ direction: "at", endsHere: true, stopsBefore: true }), spot)).toBe("ends at Woking");
+    expect(what(pass({ direction: "at", endsHere: true, coaches: 4, origin: "London Waterloo", destination: "Woking" }))).toBe("4 coaches from London Waterloo");
     expect(towardsText(direction(pass({ direction: "at", destination: "Weymouth" }), spot))).toBe("towards Weymouth");
   });
   it("names the station it stops at, whichever way it's going", () => {

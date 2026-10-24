@@ -279,7 +279,12 @@ function render(): void {
     f.addEventListener("input", () => (document.getElementById("fout")!.textContent = `${Math.round(Number(f.value) * 100)}%`));
     wirePlaceField(form, "a");
     wirePlaceField(form, "b");
-    for (const r of form.querySelectorAll<HTMLInputElement>("input[name=mode]")) r.addEventListener("change", () => (form.dataset.mode = r.value));
+    const nameBox = form.elements.namedItem("name") as HTMLInputElement;
+    for (const r of form.querySelectorAll<HTMLInputElement>("input[name=mode]"))
+      r.addEventListener("change", () => {
+        form.dataset.mode = r.value;
+        nameBox.placeholder = r.value === "one" ? "Named after the place" : "Our bridge";
+      });
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
       const fd = new FormData(form);
@@ -287,6 +292,8 @@ function render(): void {
       const q = new URLSearchParams();
       const two = fd.get("mode") === "two";
       for (const k of two ? ["name", "f"] : ["name"]) if (String(fd.get(k) ?? "").trim()) q.set(k, String(fd.get(k)));
+      // A name made up from two places ("Between X and Y") gives way to the one place's own.
+      if (!two && /^Between .+ and .+$/.test(q.get("name") ?? "")) q.delete("name");
       const missing: string[] = [];
       for (const k of two ? (["a", "b"] as const) : (["a"] as const)) {
         const p = resolvePlace(fd, k, list);

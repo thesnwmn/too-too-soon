@@ -48,6 +48,8 @@ export function what(p: Pass): string {
     return "Empty train";
   }
   const coaches = p.coaches ? `${p.coaches} coaches` : "Passenger train";
+  // Ending its journey here: where it's come from says more than here.
+  if (p.endsHere) return p.origin ? `${coaches} from ${p.origin}` : coaches;
   return p.destination ? `${coaches} to ${p.destination}` : coaches;
 }
 
