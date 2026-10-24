@@ -1,6 +1,7 @@
 // The page: a watch view (a big countdown to the next train, then the ones after) and a
 // set-up form. It asks only the Worker (api/next); the demo runs on recorded data instead.
 import { demoLineUps, type ErrorResponse, type NextResponse, parseSpot, type Pass, predictPasses, type Spot, spotParams, upcoming } from "@too-too-soon/core";
+import { logo, wordmark } from "./brand.ts";
 import { clock, countdown, direction, inMinutes, refreshAfter, stopping, sureness, what } from "./format.ts";
 
 const app = document.getElementById("app")!;
@@ -164,8 +165,8 @@ function watchView(spot: Spot, now: number): string {
     data?.stoppingOnly && `Only trains that stop at ${esc(spot.aName ?? data.aName ?? spot.a)} and ${esc(spot.bName ?? data.bName ?? spot.b)} are listed: fast trains and freight may go by too.`,
   ].filter(Boolean);
   return `<header>
-      <h1>${esc(spot.name)}</h1>
-      <button type="button" id="edit" class="ghost">Change spot</button>
+      <div class="brand">${logo}<div>${wordmark("small")}<h1>${esc(spot.name)}</h1></div></div>
+      <button type="button" id="edit" class="ghost" aria-label="Change spot">Change<span class="wide-only"> spot</span></button>
     </header>
     ${hero}
     ${rest.length ? `<ol class="list">${rest.slice(0, 8).map((p) => trainLine(p, spot, now)).join("")}</ol>` : ""}
@@ -181,7 +182,7 @@ function setupView(): string {
   const d = state.draft;
   const v = (x: string | number | undefined) => (x === undefined ? "" : esc(String(x)));
   const val = (k: string, x: string | number | undefined) => v(d ? d[k] : x);
-  return `<header><h1>Too Too Soon</h1>${s ? `<button type="button" id="cancel" class="ghost">Cancel</button>` : ""}</header>
+  return `<header><h1 class="brand">${logo}${wordmark()}</h1>${s ? `<button type="button" id="cancel" class="ghost">Cancel</button>` : ""}</header>
     <p class="intro">How long till the next too too? Set up the spot you watch trains from: tap it on a map, or type the <b>timing points</b> either side (stations or junctions, by their TIPLOC or station codes).</p>
     <button type="button" id="pick" class="wide">Pick on a map</button>
     ${state.error ? `<p class="note">${esc(state.error)}</p>` : ""}

@@ -5,7 +5,7 @@ import { dirname, join } from "node:path";
 import { type Ctx, type Shell, realShell } from "../src/check.ts";
 
 /** A temp dir holding `files` (path → contents). */
-export function tmpDir(files: Record<string, string> = {}): string {
+export function tmpDir(files: Record<string, string | Uint8Array> = {}): string {
   const root = mkdtempSync(join(tmpdir(), "health-"));
   for (const [path, text] of Object.entries(files)) {
     mkdirSync(dirname(join(root, path)), { recursive: true });

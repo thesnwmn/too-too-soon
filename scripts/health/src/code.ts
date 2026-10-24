@@ -92,5 +92,37 @@ export const mapLazy: Check = {
   },
 };
 
+export const MANIFEST = "web/public/manifest.webmanifest";
+
+/** A PNG's width and height, from its header; undefined if it isn't a PNG. */
+export function pngSize(bytes: Uint8Array): { w: number; h: number } | undefined {
+  const sig = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+  if (bytes.length < 24 || sig.some((b, i) => bytes[i] !== b)) return undefined;
+  const v = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  return { w: v.getUint32(16), h: v.getUint32(20) };
+}
+
+export const icons: Check = {
+  id: "code/icons",
+  tier: 4,
+  repro: `cat ${MANIFEST}`,
+  hint: "Every icon the web manifest lists is in web/public at the size it says. The PNGs are drawn from icon.svg: pnpm --filter @too-too-soon/web icons.",
+  run({ root }) {
+    const path = join(root, MANIFEST);
+    if (!existsSync(path)) return pass("no manifest");
+    const list = (JSON.parse(readFileSync(path, "utf8")) as { icons?: { src: string; sizes?: string }[] }).icons ?? [];
+    const problems = list.flatMap(({ src, sizes }) => {
+      const file = join(root, "web/public", src);
+      if (!existsSync(file)) return [`${src}: missing`];
+      const m = sizes?.match(/^(\d+)x(\d+)$/);
+      if (!m) return [];
+      const got = pngSize(readFileSync(file));
+      if (!got) return [`${src}: not a PNG`];
+      return got.w === Number(m[1]) && got.h === Number(m[2]) ? [] : [`${src}: ${got.w}x${got.h}, but the manifest says ${sizes}`];
+    });
+    return problems.length ? fail(problems.join("; ")) : pass(`${list.length} icons`);
+  },
+};
+
 // Cheap scans first, so a broken convention shows before the slow runs.
-export const CODE = [noToken, noDom, wrangler, mapLazy, typecheck, test, build];
+export const CODE = [noToken, noDom, wrangler, mapLazy, icons, typecheck, test, build];
