@@ -6,7 +6,9 @@
 // doesn't have). Only our own query, built from lat, lon and radius, is ever sent.
 import { overpassQuery } from "@too-too-soon/core";
 
-export const OVERPASS = ["https://overpass-api.de/api/interpreter", "https://overpass.private.coffee/api/interpreter"];
+export const OVERPASS = ["https://overpass-api.de/api/interpreter", "https://overpass.kumi.systems/api/interpreter", "https://overpass.private.coffee/api/interpreter"];
+/** How long each server gets before the next is tried: a busy one can take minutes. */
+export const PER_SERVER_MS = 25_000;
 const AGENT = "too-too-soon/1 (+https://github.com/thesnwmn/too-too-soon)";
 const RADII = [3000, 8000];
 
@@ -21,11 +23,16 @@ export async function osm(url: URL, fetcher: typeof fetch): Promise<Response> {
   const body = new URLSearchParams({ data: overpassQuery(lat, lon, radius) });
   let last = 0;
   for (const server of OVERPASS) {
-    const r = await fetcher(server, { method: "POST", body, headers: { "User-Agent": AGENT, Accept: "application/json" } }).catch(() => undefined);
+    const stop = new AbortController();
+    const timer = setTimeout(() => stop.abort(), PER_SERVER_MS);
+    const r = await fetcher(server, { method: "POST", body, headers: { "User-Agent": AGENT, Accept: "application/json" }, signal: stop.signal })
+      .catch(() => undefined)
+      .finally(() => clearTimeout(timer));
     if (r?.ok && (r.headers.get("Content-Type") ?? "").includes("json")) {
       return new Response(r.body, { headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "public, max-age=86400" } });
     }
     last = r?.status ?? 0;
   }
+  // Every server busy, slow or down: 503, which the picker shows as "busy".
   return json({ error: "OpenStreetMap is busy", status: last }, last === 429 ? 429 : 503);
 }

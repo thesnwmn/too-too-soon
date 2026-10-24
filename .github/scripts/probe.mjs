@@ -27,10 +27,11 @@ if (process.env.PLACE) {
     for (let attempt = 0; attempt < 4; attempt++) {
       for (const url of servers) {
         // overpass-api.de turns away requests that don't say who they are (406).
+        const t0 = Date.now();
         const r = await fetch(url, { method: "POST", body: new URLSearchParams({ data }), headers: { "User-Agent": "too-too-soon-probe/1 (+https://github.com/thesnwmn/too-too-soon)", Accept: "application/json" } }).catch(() => undefined);
         const text = r ? await r.text() : "";
+        console.log(`${url}: ${r?.status ?? "no answer"} in ${((Date.now() - t0) / 1000).toFixed(1)} s, ${Math.round(text.length / 1024)} KB`);
         if (r?.ok && text.startsWith("{")) return JSON.parse(text).elements ?? [];
-        console.log(`${url}: ${r?.status ?? "no answer"}`);
       }
       await new Promise((res) => setTimeout(res, 15_000));
     }

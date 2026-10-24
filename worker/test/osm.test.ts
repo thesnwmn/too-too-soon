@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { handle } from "../src/handle.ts";
+import { PER_SERVER_MS } from "../src/osm.ts";
 
 const deps = (answer: (url: string, init?: RequestInit) => Response | Promise<Response>) => {
   const calls: { url: string; init?: RequestInit }[] = [];
@@ -27,6 +28,19 @@ describe("/api/osm", () => {
     const d = deps((url) => (url.includes("overpass-api.de") ? new Response("<html>busy</html>", { status: 429, headers: { "Content-Type": "text/html" } }) : OK()));
     expect((await handle(get("lat=51.3&lon=-0.59&radius=3000"), {}, d.deps)).status).toBe(200);
     expect(d.calls).toHaveLength(2);
+  });
+  it("moves on from a server that doesn't answer in time", async () => {
+    const d = deps((url, init) =>
+      url.includes("overpass-api.de")
+        ? new Promise<Response>((_, reject) => init?.signal?.addEventListener("abort", () => reject(new DOMException("timed out", "TimeoutError"))))
+        : OK(),
+    );
+    vi.useFakeTimers();
+    const pending = handle(get("lat=51.3&lon=-0.59&radius=3000"), {}, d.deps);
+    await vi.advanceTimersByTimeAsync(PER_SERVER_MS + 10);
+    vi.useRealTimers();
+    expect((await pending).status).toBe(200);
+    expect(d.calls.map((c) => new URL(c.url).host)).toEqual(["overpass-api.de", "overpass.kumi.systems"]);
   });
   it("says busy, as JSON, when every server is", async () => {
     const d = deps(() => new Response("no", { status: 429 }));

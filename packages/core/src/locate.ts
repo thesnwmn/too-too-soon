@@ -37,12 +37,16 @@ export interface Located {
   f: number;
 }
 
-/** The Overpass query for running lines and timing points within `radius` metres of a point. */
+/** The Overpass query for running lines and timing points within about `radius` metres of a point. */
 export function overpassQuery(lat: number, lon: number, radius: number): string {
-  const around = `(around:${Math.round(radius)},${lat.toFixed(6)},${lon.toFixed(6)})`;
-  // Running lines only: sidings, yards and crossovers would snap a tap to the wrong track.
-  // TIPLOCs are patchy in OSM (none for miles around Woking), but stations nearly always have a CRS code.
-  return `[out:json][timeout:25];way["railway"="rail"][!"service"]${around};out geom;(node["ref:tiploc"]${around};node["railway"~"^(station|halt)$"]["ref:crs"]${around};);out;`;
+  // A box rather than (around:…): Overpass answers a box in seconds, a radius around busy lines
+  // in tens of seconds. The box's corners reach a little further, which does no harm.
+  const dLat = radius / 111_320;
+  const dLon = radius / (111_320 * Math.cos((lat * Math.PI) / 180));
+  const box = `(${(lat - dLat).toFixed(6)},${(lon - dLon).toFixed(6)},${(lat + dLat).toFixed(6)},${(lon + dLon).toFixed(6)})`;
+  // Tracks as skeletons (node ids and positions, no tags: much less to send around a busy
+  // junction), timing points with their tags (the code and the name).
+  return `[out:json][timeout:60];way["railway"="rail"][!"service"]${box};out skel geom qt;(node["ref:tiploc"]${box};node["ref:crs"]${box};);out qt;`;
 }
 
 const R = 6_371_000;

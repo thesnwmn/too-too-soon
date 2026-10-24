@@ -90,10 +90,12 @@ describe("locate on real-shaped track", () => {
 
 describe("geometry and the query", () => {
   it("measures 500 m steps", () => expect(distance(at(0), at(1))).toBeCloseTo(500, -1));
-  it("asks for rail ways with geometry and TIPLOC nodes around the tap", () => {
+  it("asks for running lines as skeletons and timing points, in a box around the tap", () => {
     const q = overpassQuery(51.5, -0.2, 4000);
-    expect(q).toContain('way["railway"="rail"][!"service"](around:4000,51.500000,-0.200000);out geom;');
-    expect(q).toContain('node["ref:tiploc"](around:4000,51.500000,-0.200000);');
-    expect(q).toContain('node["railway"~"^(station|halt)$"]["ref:crs"](around:4000,51.500000,-0.200000);');
+    // 4 km is 0.035932° of latitude, and 0.057721° of longitude at 51.5° N.
+    const box = "(51.464068,-0.257721,51.535932,-0.142279)";
+    expect(q).toContain(`way["railway"="rail"][!"service"]${box};out skel geom qt;`);
+    expect(q).toContain(`node["ref:tiploc"]${box};`);
+    expect(q).toContain(`node["ref:crs"]${box};`);
   });
 });
