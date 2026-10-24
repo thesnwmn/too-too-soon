@@ -3,7 +3,7 @@ title: Search for a station or timing point by name
 kind: build
 role: engineer
 size: M
-status: ready
+status: doing
 ---
 
 ## Why
