@@ -3,7 +3,7 @@ title: Swap to the logo the producer picks, if it isn't A
 kind: build
 role: designer
 size: S
-status: shaped
+status: dropped
 needs: [logo]
 ---
 
@@ -19,3 +19,4 @@ Anything else about the page. If the producer keeps A, this is dropped.
 
 ## Log
 - 2026-10-24 shaped with the `logo` ask.
+- 2026-10-24 dropped: the producer is happy with A (ask `logo`).
