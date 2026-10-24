@@ -21,7 +21,7 @@ on:
         description: How far from A to B, 0 to 1
         default: "0.5"
       sample:
-        description: A location code to show what RTT itself sends there (uses the RTT_TOKEN secret), instead of probing the site
+        description: A location code (or a /data/ path) to show what RTT itself sends (uses the RTT_TOKEN secret), instead of probing the site
         default: ""
       url:
         description: The site
