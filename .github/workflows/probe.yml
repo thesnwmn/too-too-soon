@@ -3,7 +3,8 @@ name: Probe
 # Asks the live Worker what it sees, from GitHub's runners (sessions can't always reach
 # workers.dev): /api/info, then /api/next for a spot. Run it by hand, from the Actions tab or a session.
 # Give `place` (a Google Maps link, short or long, or "lat,lon") to find the spot's timing points
-# from OpenStreetMap the way the map picker does, instead of a and b.
+# from OpenStreetMap the way the map picker does, instead of a and b. Give `sample` (a location
+# code) to see what RTT itself sends there, fields and all, using the RTT_TOKEN secret.
 on:
   workflow_dispatch:
     inputs:
@@ -19,6 +20,9 @@ on:
       f:
         description: How far from A to B, 0 to 1
         default: "0.5"
+      sample:
+        description: A location code to show what RTT itself sends there (uses the RTT_TOKEN secret), instead of probing the site
+        default: ""
       url:
         description: The site
         default: https://too-too-soon.justin-fc2.workers.dev
@@ -34,10 +38,16 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
-      - run: node .github/scripts/probe.mjs
+      - if: inputs.sample == ''
+        run: node .github/scripts/probe.mjs
         env:
           PLACE: ${{ inputs.place }}
           A: ${{ inputs.a }}
           B: ${{ inputs.b }}
           F: ${{ inputs.f }}
           SITE: ${{ inputs.url }}
+      - if: inputs.sample != ''
+        run: node .github/scripts/rtt-sample.mjs
+        env:
+          SAMPLE: ${{ inputs.sample }}
+          RTT_TOKEN: ${{ secrets.RTT_TOKEN }}
