@@ -47,6 +47,8 @@ export function wirePlaceField(form: HTMLFormElement, k: "a" | "b"): void {
   const ul = form.querySelector<HTMLUListElement>(`#${k}-list`)!;
   let found: Place[] = [];
   let active = -1;
+  // Escape (or a pick) before a late list arrives: it stays shut until the next keystroke.
+  let dismissed = false;
   const close = () => {
     ul.hidden = true;
     active = -1;
@@ -66,6 +68,7 @@ export function wirePlaceField(form: HTMLFormElement, k: "a" | "b"): void {
     code.value = p.code;
     name.value = p.name;
     chosen.textContent = p.code;
+    dismissed = true;
     close();
   };
   box.addEventListener("focus", () => void loadPlaces());
@@ -75,8 +78,9 @@ export function wirePlaceField(form: HTMLFormElement, k: "a" | "b"): void {
     name.value = "";
     chosen.textContent = "";
     const asked = box.value;
+    dismissed = false;
     const places = await loadPlaces();
-    if (document.activeElement !== box || box.value !== asked) return;
+    if (dismissed || document.activeElement !== box || box.value !== asked) return;
     if (!places) {
       box.placeholder = "Type a code, like WOK or CLPHMJN";
       chosen.textContent = "Search isn't available here: type the code (like WOK or CLPHMJN).";
@@ -111,8 +115,9 @@ export function wirePlaceField(form: HTMLFormElement, k: "a" | "b"): void {
     } else if (e.key === "Enter" && open) {
       e.preventDefault();
       choose(found[Math.max(active, 0)]);
-    } else if (e.key === "Escape" && open) {
-      e.preventDefault();
+    } else if (e.key === "Escape") {
+      if (open) e.preventDefault();
+      dismissed = true;
       close();
     }
   });

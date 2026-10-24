@@ -1,6 +1,6 @@
 // The page: a watch view (a big countdown to the next train, then the ones after) and a
 // set-up form. It asks only the Worker (api/next); the demo runs on recorded data instead.
-import { withDemoClasses, demoLineUps, type ErrorResponse, type NextResponse, parseSpot, type Pass, predictPasses, type Spot, spotParams, upcoming } from "@too-too-soon/core";
+import { withDemoClasses, demoLineUps, type ErrorResponse, type NextResponse, parseSpot, type Pass, predictAt, predictPasses, type Spot, spotParams, upcoming } from "@too-too-soon/core";
 import { logo, wordmark } from "./brand.ts";
 import { loadPlaces, placeField, resolvePlace, wirePlaceField } from "./places.ts";
 import { about, clock, countdown, direction, inMinutes, refreshAfter, stopping, sureness, what } from "./format.ts";
@@ -62,12 +62,18 @@ function useSpot(spot: Spot, save = true): void {
 let demoAnchor = Date.now();
 
 function demoData(now: number): NextResponse {
-  let passes = upcoming(predictPasses(demoLineUps(demoAnchor).a, demoLineUps(demoAnchor).b, state.spot?.f ?? DEMO_SPOT.f), now);
+  // A one-point spot sees the trains at the demo's first point; otherwise between the two.
+  const one = state.spot !== undefined && !state.spot.b;
+  const at = (t: number) => {
+    const ups = demoLineUps(t);
+    return upcoming(one ? predictAt(ups.a) : predictPasses(ups.a, ups.b, state.spot?.f ?? DEMO_SPOT.f), now);
+  };
+  let passes = at(demoAnchor);
   if (passes.length < 4) {
     demoAnchor = now;
-    passes = upcoming(predictPasses(demoLineUps(now).a, demoLineUps(now).b, state.spot?.f ?? DEMO_SPOT.f), now);
+    passes = at(now);
   }
-  return { generatedAt: now, passes: withDemoClasses(passes), aName: "Ashby Junction", bName: "Bramford" };
+  return { generatedAt: now, passes: withDemoClasses(passes), aName: "Ashby Junction", bName: one ? undefined : "Bramford" };
 }
 
 let timer: number | undefined;
