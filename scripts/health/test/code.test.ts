@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { icons, mapLazy, noDom, noToken, pngSize, typecheck, wrangler } from "../src/code.ts";
+import { icons, mapLazy, rttHost, noDom, noToken, pngSize, typecheck, wrangler } from "../src/code.ts";
 import { ctx, fakeShell, tmpDir } from "./fixture.ts";
 
 describe("code/typecheck (and the other pnpm runs)", () => {
@@ -77,5 +77,17 @@ describe("code/icons", () => {
     expect(r.status).toBe("fail");
     expect(r.detail).toContain("icon.svg: missing");
     expect(r.detail).toContain("icon-180.png: 192x192");
+  });
+});
+
+describe("code/rtt-clients", () => {
+  const rtt = 'const RTT = "https://data.rtt.io";\n';
+  it("passes when only the Worker and the sample script name RTT's host", () => {
+    expect(rttHost.run(ctx(tmpDir({ "worker/src/rtt.ts": rtt, ".github/scripts/rtt-sample.mjs": rtt, "worker/src/handle.ts": "// asks rtt.ts\n" }))).status).toBe("pass");
+  });
+  it("fails on another file that does", () => {
+    const r = rttHost.run(ctx(tmpDir({ "worker/src/rtt.ts": rtt, ".github/scripts/probe.mjs": rtt, "packages/core/src/x.ts": rtt })));
+    expect(r.status).toBe("fail");
+    expect(r.out?.split("\n").sort()).toEqual([".github/scripts/probe.mjs", "packages/core/src/x.ts"]);
   });
 });

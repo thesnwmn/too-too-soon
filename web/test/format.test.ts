@@ -29,6 +29,7 @@ describe("the words", () => {
     expect(what(pass({ passenger: false, headcode: "3S84" }))).toBe("Special train");
     expect(what(pass({ passenger: false, headcode: "0Y42" }))).toBe("Engine on its own");
     expect(what(pass({ passenger: false }))).toBe("Empty train");
+    expect(what(pass({ passenger: false, headcode: "9T12" }))).toBe("Empty train");
   });
   it("says who runs it, what it is and where from", () => {
     expect(about(pass({ operator: "South Western Railway", trainClass: "159", origin: "London Waterloo", destination: "Yeovil Junction" }))).toBe("South Western Railway · Class 159 · from London Waterloo");

@@ -222,6 +222,9 @@ function render(): void {
   if (state.picking) return;
   const now = Date.now();
   app.innerHTML = state.spot && !state.editing ? watchView(state.spot, now) : setupView();
+  // Forget opened trains that have gone by.
+  const listed = new Set(state.data?.passes.map((p) => p.id));
+  for (const id of openRows) if (!listed.has(id)) openRows.delete(id);
   for (const row of app.querySelectorAll<HTMLDetailsElement>("details[data-id]"))
     row.addEventListener("toggle", () => (row.open ? openRows.add(row.dataset.id!) : openRows.delete(row.dataset.id!)));
   document.getElementById("edit")?.addEventListener("click", () => {

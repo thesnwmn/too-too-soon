@@ -64,7 +64,7 @@ h1 { font-size: 1.25rem; margin: 8px 0; overflow-wrap: anywhere; }
 .wordmark.small { font-size: 0.95rem; display: block; }
 header .brand + button, header > button { flex: none; }
 /* On a narrow phone "Change spot" becomes "Change", so the spot's name keeps to one line. */
-@media (max-width: 380px) { .wide-only { display: none; } }
+@media (max-width: 380px) { .wide-only { display: none; } .train .more { padding-left: calc(2rem + 12px); } }
 a { color: inherit; }
 button {
   font: inherit;

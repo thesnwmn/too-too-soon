@@ -1,5 +1,6 @@
-// Talking to Realtime Trains: the token, the location line-up, and what the token may do.
-// The only code that knows RTT's host or the token. See docs/architecture.md#the-token-rule.
+// Talking to Realtime Trains: the token, the location line-up, a service's allocations, and
+// what the token may do. The site's only code that knows RTT's host or the token (the other is
+// .github/scripts/rtt-sample.mjs, run by hand from GitHub). See docs/architecture.md#the-token-rule.
 import type { RttLocationResponse, RttServiceResponse } from "@too-too-soon/core";
 
 export const RTT = "https://data.rtt.io";

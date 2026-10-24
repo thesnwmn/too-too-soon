@@ -31,7 +31,7 @@ After this the site never needs OpenStreetMap again for that spot: refreshes onl
 
 ## Getting the trains
 
-Every refresh, the Worker makes two calls to Realtime Trains, each from 15 minutes ago to about 90 minutes ahead, in detailed mode (which includes trains that pass without stopping):
+Every refresh, the Worker makes two calls to Realtime Trains (and, with an allocations entitlement, one more per train it hasn't yet asked about, for the class of train: see [architecture](architecture.md#rate-limits)), each from 15 minutes ago to about 90 minutes ahead, in detailed mode (which includes trains that pass without stopping):
 
 ```
 GET /gb-nr/location?code=A&timeFrom=…&timeWindow=…&detailed=true

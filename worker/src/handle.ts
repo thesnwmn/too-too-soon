@@ -72,28 +72,44 @@ export const CLASS_AHEAD = 6;
 /** A train's class is kept for six hours once known (it rarely changes), an hour when RTT doesn't say. */
 export const CLASS_KEEP_S = 6 * 3600;
 export const NO_CLASS_KEEP_S = 3600;
+/** The list waits at most this long for classes; any not back by then come on a later refresh. */
+export const CLASS_WAIT_MS = 1500;
+/** After RTT says we've asked too often, no class lookups for this long (or its Retry-After). */
+export const CLASS_PAUSE_MS = 10 * 60_000;
+
+/** Class lookups are paused until then: they're extras, and mustn't spend what the line-ups need. */
+let classesPausedUntil = 0;
+export const resetClasses = () => (classesPausedUntil = 0);
 
 /**
  * The class of train ("444") for the next few passenger trains, from RTT's allocations: only
- * with an entitlement for them, and never holding up the list. A lookup that fails is left for
- * the next refresh; one that answers with no allocation is remembered for an hour.
+ * with an entitlement for them, each train asked about once (then cached), never holding the
+ * list up for more than CLASS_WAIT_MS, and not at all for a while after a 429. A lookup that
+ * fails is left for a later refresh; one that answers with no allocation is remembered for an hour.
  */
 async function withClasses(passes: Pass[], secret: string, deps: HandlerDeps): Promise<Pass[]> {
-  const ahead = passes.filter((p) => p.passenger).slice(0, CLASS_AHEAD);
   const found = new Map<string, string>();
-  await Promise.all(
-    ahead.map(async (p) => {
+  const lookups = passes
+    .filter((p) => p.passenger)
+    .slice(0, CLASS_AHEAD)
+    .map(async (p) => {
       const key = `class:${p.id}:${p.allocationIndex ?? 0}`;
       let cls = await deps.store.get(key).catch(() => undefined);
       if (cls === undefined) {
-        const r = await service(p.id, secret, deps).catch(() => undefined);
+        if (deps.now() < classesPausedUntil) return;
+        const r = await service(p.id, secret, deps).catch((e: unknown) => {
+          if (e instanceof RttError && e.status === 429) classesPausedUntil = deps.now() + (e.retryAfter ? e.retryAfter * 1000 : CLASS_PAUSE_MS);
+          return undefined;
+        });
         if (!r) return;
         cls = trainClassOf(r, p.allocationIndex) ?? "";
         await deps.store.put(key, cls, cls ? CLASS_KEEP_S : NO_CLASS_KEEP_S).catch(() => undefined);
       }
       if (cls) found.set(p.id, cls);
-    }),
-  );
+    });
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  await Promise.race([Promise.all(lookups), new Promise((done) => (timer = setTimeout(done, CLASS_WAIT_MS)))]);
+  if (timer !== undefined) clearTimeout(timer);
   return passes.map((p) => (found.has(p.id) ? { ...p, trainClass: found.get(p.id) } : p));
 }
 
