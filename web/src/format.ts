@@ -30,11 +30,29 @@ export function direction(p: Pass, spot: Spot, names: { a?: string; b?: string }
   return p.direction === "ab" ? { arrow: "➡", towards: b } : { arrow: "⬅", towards: a };
 }
 
-/** What it is: "Freight", "Empty train", or "10 coaches to London Waterloo". */
+/**
+ * What it is: "10 coaches to London Waterloo" for a passenger train. Anything else by its
+ * headcode's first digit, which says what kind of train it is: 0 an engine on its own, 3 a
+ * special (in autumn, often a train cleaning leaves off the rails), 5 empty coaches, 4 and 6
+ * to 8 freight.
+ */
 export function what(p: Pass): string {
-  if (!p.passenger) return /^[05]/.test(p.headcode ?? "") ? "Empty train" : "Freight train";
+  if (!p.passenger) {
+    const c = (p.headcode ?? "")[0];
+    if (c === "0") return "Engine on its own";
+    if (c === "3" || c === "9") return "Special train";
+    if (c === "4" || c === "6" || c === "7" || c === "8") return "Freight train";
+    return "Empty train";
+  }
   const coaches = p.coaches ? `${p.coaches} coaches` : "Passenger train";
   return p.destination ? `${coaches} to ${p.destination}` : coaches;
+}
+
+/** Who runs it, what it is and where it's from: "South Western Railway · Class 159 · from London Waterloo". */
+export function about(p: Pass): string {
+  const from =
+    p.passenger || !p.destination ? (p.origin ? `from ${p.origin}` : undefined) : p.origin === p.destination ? `from ${p.origin} and back` : p.origin ? `${p.origin} to ${p.destination}` : `to ${p.destination}`;
+  return [p.operator, p.trainClass && `Class ${p.trainClass}`, from].filter(Boolean).join(" · ");
 }
 
 /** How sure, and how late: "6 min late", "on time", "timetable only". */
@@ -46,12 +64,15 @@ export function sureness(p: Pass): string {
   return "on time";
 }
 
-/** Whether it slows down near here: worth knowing at a bridge by a station. */
-export function stopping(p: Pass): string | undefined {
-  if (p.stopsBefore && p.stopsAfter) return "stopping train";
-  if (p.stopsBefore) return "just left a station";
-  if (p.stopsAfter) return "about to stop";
-  return "non-stop";
+/** Whether it slows down near here, naming the station: worth knowing at a bridge by one. A fast one is the exciting one. */
+export function stopping(p: Pass, spot: Spot, names: { a?: string; b?: string } = {}): string {
+  const a = spot.aName ?? names.a ?? spot.a;
+  const b = spot.bName ?? names.b ?? spot.b;
+  const [before, after] = p.direction === "ab" ? [a, b] : [b, a];
+  if (p.stopsBefore && p.stopsAfter) return `stops at ${before} and ${after}`;
+  if (p.stopsBefore) return `just left ${before}`;
+  if (p.stopsAfter) return `stopping at ${after}`;
+  return "fast: not stopping";
 }
 
 /**

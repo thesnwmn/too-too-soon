@@ -1,7 +1,7 @@
 // Which trains pass a spot between timing points A and B, and when. The method is in
 // docs/how-it-works.md: join the trains listed at A and at B, and interpolate a fraction
 // `f` of the way from A to B. Times are epoch milliseconds inside.
-import type { RttLocationResponse, RttService, RttTimes } from "./rtt.ts";
+import type { RttLocationResponse, RttService, RttServiceResponse, RttTimes } from "./rtt.ts";
 
 /** How sure a time is: a train has really passed the first point, has live forecasts, or only a timetable. */
 export type Basis = "actual" | "forecast" | "timetable";
@@ -25,6 +25,10 @@ export interface Pass {
   destination?: string;
   /** Passenger vehicles, when RTT knows. */
   coaches?: number;
+  /** Which of RTT's allocations it runs with past here (see trainClassOf). */
+  allocationIndex?: number;
+  /** The class of train, like "444", when RTT's allocations say (filled in by the Worker). */
+  trainClass?: string;
   /** Minutes late leaving the first point, when there's live data. */
   late?: number;
   /** Whether it stops at the point it leaves before the spot, and the one after. */
@@ -157,6 +161,7 @@ export function predictPasses(atA: RttLocationResponse, atB: RttLocationResponse
       origin: a.origin?.[0]?.location?.description,
       destination: a.destination?.[a.destination.length - 1]?.location?.description,
       coaches: coaches && coaches > 0 ? coaches : undefined,
+      allocationIndex: first.locationMetadata?.allocationIndex,
       late,
       stopsBefore: stops(first),
       stopsAfter: stops(second),
@@ -165,6 +170,13 @@ export function predictPasses(atA: RttLocationResponse, atB: RttLocationResponse
     });
   }
   return passes.sort((x, y) => x.time - y.time);
+}
+
+/** The class of train a service runs with on leaving the point with `allocationIndex`: its allocation there, or else its first. */
+export function trainClassOf(r: RttServiceResponse, allocationIndex = 0): string | undefined {
+  const all = r.service?.allocationData ?? [];
+  const at = all.find((x) => x.allocationIndex === allocationIndex) ?? all[0];
+  return at?.leadingClass?.trim() || undefined;
 }
 
 /** Passes from `graceMs` ago onwards: a train a minute late past the bridge may still be in sight. */

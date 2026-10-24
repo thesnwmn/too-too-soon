@@ -1,8 +1,8 @@
 // The page: a watch view (a big countdown to the next train, then the ones after) and a
 // set-up form. It asks only the Worker (api/next); the demo runs on recorded data instead.
-import { demoLineUps, type ErrorResponse, type NextResponse, parseSpot, type Pass, predictPasses, type Spot, spotParams, upcoming } from "@too-too-soon/core";
+import { withDemoClasses, demoLineUps, type ErrorResponse, type NextResponse, parseSpot, type Pass, predictPasses, type Spot, spotParams, upcoming } from "@too-too-soon/core";
 import { logo, wordmark } from "./brand.ts";
-import { clock, countdown, direction, inMinutes, refreshAfter, stopping, sureness, what } from "./format.ts";
+import { about, clock, countdown, direction, inMinutes, refreshAfter, stopping, sureness, what } from "./format.ts";
 
 const app = document.getElementById("app")!;
 const params = new URLSearchParams(location.search);
@@ -66,7 +66,7 @@ function demoData(now: number): NextResponse {
     demoAnchor = now;
     passes = upcoming(predictPasses(demoLineUps(now).a, demoLineUps(now).b, state.spot?.f ?? DEMO_SPOT.f), now);
   }
-  return { generatedAt: now, passes, aName: "Ashby Junction", bName: "Bramford" };
+  return { generatedAt: now, passes: withDemoClasses(passes), aName: "Ashby Junction", bName: "Bramford" };
 }
 
 let timer: number | undefined;
@@ -129,12 +129,15 @@ document.addEventListener("visibilitychange", () => {
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
+/** RTT's names for the timing points, for a spot set up without its own. */
+const names = () => ({ a: state.data?.aName, b: state.data?.bName });
+
 function trainLine(p: Pass, spot: Spot, now: number): string {
-  const d = direction(p, spot, { a: state.data?.aName, b: state.data?.bName });
+  const d = direction(p, spot, names());
   return `<li class="train ${p.passenger ? "" : "freight"}">
-    <span class="arrow" aria-hidden="true">${d.arrow}</span>
+    <span class="arrow" role="img" aria-label="towards ${esc(d.towards)}">${d.arrow}</span>
     <span class="when"><b>${clock(p.time)}</b> <small>${inMinutes(p.time, now)}</small></span>
-    <span class="what">${esc(what(p))}<small>towards ${esc(d.towards)} · ${esc(sureness(p))}</small></span>
+    <span class="what">${esc(what(p))}${about(p) ? `<small>${esc(about(p))}</small>` : ""}<small>${esc(stopping(p, spot, names()))} · ${esc(sureness(p))}</small></span>
   </li>`;
 }
 
@@ -153,7 +156,8 @@ function watchView(spot: Spot, now: number): string {
       <p class="count" data-time="${next.time}">${countdown(next.time, now)}</p>
       <p class="dir"><span aria-hidden="true">${d.arrow}</span> towards ${esc(d.towards)}</p>
       <p class="detail">${esc(what(next))}</p>
-      <p class="detail small">${clock(next.time)} · ${esc(sureness(next))} · ${esc(stopping(next) ?? "")}${next.headcode ? ` · ${esc(next.headcode)}` : ""}</p>
+      ${about(next) ? `<p class="detail small">${esc(about(next))}</p>` : ""}
+      <p class="detail small">${clock(next.time)} · ${esc(stopping(next, spot, names()))} · ${esc(sureness(next))}${next.headcode ? ` · ${esc(next.headcode)}` : ""}</p>
     </section>`;
   }
   const age = data ? Math.round((now - data.generatedAt) / 60_000) : 0;

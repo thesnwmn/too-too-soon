@@ -20,6 +20,8 @@ export interface DemoTrain {
   stopsAtA?: boolean;
   stopsAtB?: boolean;
   coaches?: number;
+  /** The class of train, as the Worker would add it from RTT's allocations. */
+  trainClass?: string;
   operator?: string;
   origin: string;
   destination: string;
@@ -81,19 +83,23 @@ export function lineUps(trains: DemoTrain[], now: number, names = { a: "Ashby Ju
 
 /** An hour on a busy two-track line: commuter trains both ways, a late one, an express, freight and a cancellation. */
 export const DEMO_TRAINS: DemoTrain[] = [
-  { id: "D10001", headcode: "2B14", at: -3, direction: "ab", run: 4, late: 0, stopsAtA: true, coaches: 8, operator: "Demo Trains", origin: "London Waterloo", destination: "Bramford" },
-  { id: "D10002", headcode: "1A23", at: 2, direction: "ba", run: 3, late: 1, coaches: 10, operator: "Demo Express", origin: "Southampton", destination: "London Waterloo" },
+  { id: "D10001", headcode: "2B14", trainClass: "450", at: -3, direction: "ab", run: 4, late: 0, stopsAtA: true, coaches: 8, operator: "Demo Trains", origin: "London Waterloo", destination: "Bramford" },
+  { id: "D10002", headcode: "1A23", trainClass: "444", at: 2, direction: "ba", run: 3, late: 1, coaches: 10, operator: "Demo Express", origin: "Southampton", destination: "London Waterloo" },
   { id: "D10003", headcode: "6M41", at: 6, direction: "ab", run: 5, late: 7, passenger: false, operator: "Freightliner", origin: "Southampton Docks", destination: "Birmingham" },
-  { id: "D10004", headcode: "2B17", at: 11, direction: "ba", run: 4, late: 0, stopsAtB: true, coaches: 4, operator: "Demo Trains", origin: "Bramford", destination: "London Waterloo" },
-  { id: "D10005", headcode: "1B50", at: 15, direction: "ab", run: 3, late: 2, coaches: 12, operator: "Demo Express", origin: "London Waterloo", destination: "Weymouth" },
-  { id: "D10006", headcode: "2B19", at: 19, direction: "ab", run: 4, stopsAtA: true, coaches: 8, operator: "Demo Trains", origin: "London Waterloo", destination: "Bramford", cancelled: true },
+  { id: "D10004", headcode: "2B17", trainClass: "450", at: 11, direction: "ba", run: 4, late: 0, stopsAtB: true, coaches: 4, operator: "Demo Trains", origin: "Bramford", destination: "London Waterloo" },
+  { id: "D10005", headcode: "1B50", trainClass: "444", at: 15, direction: "ab", run: 3, late: 2, coaches: 12, operator: "Demo Express", origin: "London Waterloo", destination: "Weymouth" },
+  { id: "D10006", headcode: "2B19", trainClass: "450", at: 19, direction: "ab", run: 4, stopsAtA: true, coaches: 8, operator: "Demo Trains", origin: "London Waterloo", destination: "Bramford", cancelled: true },
   { id: "D10007", headcode: "5Z90", at: 23, direction: "ba", run: 4, passenger: false, operator: "Demo Trains", origin: "Bramford Depot", destination: "Clapham Yard", onlyAt: "b" },
-  { id: "D10008", headcode: "2B21", at: 27, direction: "ba", run: 4, stopsAtB: true, coaches: 8, operator: "Demo Trains", origin: "Bramford", destination: "London Waterloo" },
+  { id: "D10008", headcode: "2B21", trainClass: "450", at: 27, direction: "ba", run: 4, stopsAtB: true, coaches: 8, operator: "Demo Trains", origin: "Bramford", destination: "London Waterloo" },
   { id: "D10009", headcode: "4O22", at: 34, direction: "ba", run: 6, passenger: false, operator: "DB Cargo", origin: "Wembley", destination: "Southampton Docks" },
-  { id: "D10010", headcode: "1A31", at: 41, direction: "ab", run: 3, coaches: 10, operator: "Demo Express", origin: "London Waterloo", destination: "Southampton" },
-  { id: "D10011", headcode: "2B23", at: 48, direction: "ab", run: 4, stopsAtA: true, coaches: 8, operator: "Demo Trains", origin: "London Waterloo", destination: "Bramford" },
-  { id: "D10012", headcode: "1A35", at: 56, direction: "ba", run: 3, coaches: 12, operator: "Demo Express", origin: "Southampton", destination: "London Waterloo" },
+  { id: "D10010", headcode: "1A31", trainClass: "444", at: 41, direction: "ab", run: 3, coaches: 10, operator: "Demo Express", origin: "London Waterloo", destination: "Southampton" },
+  { id: "D10011", headcode: "2B23", trainClass: "450", at: 48, direction: "ab", run: 4, stopsAtA: true, coaches: 8, operator: "Demo Trains", origin: "London Waterloo", destination: "Bramford" },
+  { id: "D10012", headcode: "1A35", trainClass: "444", at: 56, direction: "ba", run: 3, coaches: 12, operator: "Demo Express", origin: "Southampton", destination: "London Waterloo" },
 ];
+
+/** Passes with their class of train, as the Worker adds it for the live site. */
+export const withDemoClasses = <P extends { id: string; trainClass?: string }>(passes: P[], trains = DEMO_TRAINS): P[] =>
+  passes.map((p) => ({ ...p, trainClass: trains.find((t) => p.id.includes(`:${t.id}:`))?.trainClass }));
 
 /** The demo spot's line-ups, as if asked at `now`. */
 export const demoLineUps = (now: number) => lineUps(DEMO_TRAINS, now);

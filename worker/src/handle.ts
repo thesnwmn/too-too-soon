@@ -1,8 +1,8 @@
 // The Worker's routes. Everything it needs from outside (fetch, the clock, the cache) is
 // passed in, so the tests run it against recorded responses.
-import { type ErrorResponse, type InfoResponse, liveDataLimited, type NextResponse, parseSpot, predictPasses, type RttLocationResponse, upcoming } from "@too-too-soon/core";
+import { type ErrorResponse, type InfoResponse, liveDataLimited, type NextResponse, type Pass, parseSpot, predictPasses, type RttLocationResponse, trainClassOf, upcoming } from "@too-too-soon/core";
 import { osm } from "./osm.ts";
-import { accessToken, type Deps, info, lineUp, RttError, tidyToken } from "./rtt.ts";
+import { accessToken, type Deps, info, lineUp, RttError, service, tidyToken } from "./rtt.ts";
 
 export interface Env {
   /** The Realtime Trains token (access or refresh): a Worker secret, set by the deploy workflow. */
@@ -67,6 +67,36 @@ function sharedLineUp(code: string, secret: string, deps: HandlerDeps) {
   return p;
 }
 
+/** How many of the next passenger trains get their class of train: one RTT lookup each, the first time. */
+export const CLASS_AHEAD = 6;
+/** A train's class is kept for six hours once known (it rarely changes), an hour when RTT doesn't say. */
+export const CLASS_KEEP_S = 6 * 3600;
+export const NO_CLASS_KEEP_S = 3600;
+
+/**
+ * The class of train ("444") for the next few passenger trains, from RTT's allocations: only
+ * with an entitlement for them, and never holding up the list. A lookup that fails is left for
+ * the next refresh; one that answers with no allocation is remembered for an hour.
+ */
+async function withClasses(passes: Pass[], secret: string, deps: HandlerDeps): Promise<Pass[]> {
+  const ahead = passes.filter((p) => p.passenger).slice(0, CLASS_AHEAD);
+  const found = new Map<string, string>();
+  await Promise.all(
+    ahead.map(async (p) => {
+      const key = `class:${p.id}:${p.allocationIndex ?? 0}`;
+      let cls = await deps.store.get(key).catch(() => undefined);
+      if (cls === undefined) {
+        const r = await service(p.id, secret, deps).catch(() => undefined);
+        if (!r) return;
+        cls = trainClassOf(r, p.allocationIndex) ?? "";
+        await deps.store.put(key, cls, cls ? CLASS_KEEP_S : NO_CLASS_KEEP_S).catch(() => undefined);
+      }
+      if (cls) found.set(p.id, cls);
+    }),
+  );
+  return passes.map((p) => (found.has(p.id) ? { ...p, trainClass: found.get(p.id) } : p));
+}
+
 /** Whatever went wrong, the page gets JSON it can show, never the platform's error page. */
 function failure(e: unknown, a: string, b: string): Response {
   if (e instanceof RttError) {
@@ -85,16 +115,19 @@ async function next(url: URL, env: Env, deps: HandlerDeps): Promise<Response> {
   if (!env.RTT_TOKEN) return json({ error: "The live data isn't set up yet: the Worker has no Realtime Trains token. Try the demo (?demo)." }, 503);
   try {
     const [atA, atB] = await Promise.all([sharedLineUp(a, env.RTT_TOKEN, deps), sharedLineUp(b, env.RTT_TOKEN, deps)]);
+    // A swapped token says what it may do: detailed mode lists trains that pass without calling,
+    // and an allocations entitlement says what each train is.
+    const ents = await accessToken(env.RTT_TOKEN, deps).then((t) => t.entitlements).catch(() => undefined);
+    let passes = upcoming(predictPasses(atA.data, atB.data, f), deps.now());
+    if (ents?.some((e) => e.startsWith("allowAllocations"))) passes = await withClasses(passes, env.RTT_TOKEN, deps);
     const body: NextResponse = {
       generatedAt: Math.min(atA.at, atB.at),
-      passes: upcoming(predictPasses(atA.data, atB.data, f), deps.now()),
+      passes,
       aName: atA.data.query?.location?.description,
       bName: atB.data.query?.location?.description,
     };
     if (atA.stale || atB.stale) body.stale = true;
     if (liveDataLimited(atA.data, atB.data)) body.limited = true;
-    // A swapped token says what it may do; without detailed mode RTT lists only trains that call.
-    const ents = await accessToken(env.RTT_TOKEN, deps).then((t) => t.entitlements).catch(() => undefined);
     if (ents && !ents.includes("allowDetailed")) body.stoppingOnly = true;
     return json(body);
   } catch (e) {
