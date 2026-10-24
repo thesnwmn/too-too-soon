@@ -13,7 +13,7 @@ The producer, 2026-10-24, with detailed mode on: "Can we allow me to see a few m
 ## Done when
 - Each train in the list says who runs it, where it's from and where it's going (freight too), and whether it stops near here in words naming the station ("stops at Woking", "fast, no stops").
 - Where RTT's allocations say it, the type of train ("Class 444"); a probe of the live data records what RTT really sends.
-- The big card says the same, and the list stays one glance per train at 360 px.
+- The big card says the same, and the list stays one glance per train at 360 px: compact rows, a tap opens the rest (the producer, mid-build: "Can it be compact and expand/collapse on click?").
 - Tests with recorded-shape fixtures; the token rule holds.
 
 ## Not this

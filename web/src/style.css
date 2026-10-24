@@ -103,14 +103,22 @@ button:disabled { opacity: 0.6; }
 .next .small { font-size: 0.9rem; opacity: 0.9; }
 
 .list { list-style: none; margin: 0; padding: 0; }
-.train {
+.train { border-bottom: 1px solid var(--line); }
+/* Compact: the time and what it is; a tap opens the rest (main.ts trainLine). */
+.train summary {
   display: grid;
-  grid-template-columns: 2rem 5.5rem 1fr;
+  grid-template-columns: 2rem 5.5rem 1fr 1rem;
   align-items: center;
   gap: 8px;
   padding: 12px 4px;
-  border-bottom: 1px solid var(--line);
+  list-style: none;
+  cursor: pointer;
 }
+.train summary::-webkit-details-marker { display: none; }
+.train .chevron { width: 0.6rem; height: 0.6rem; border: solid var(--muted); border-width: 0 2px 2px 0; transform: rotate(45deg); justify-self: center; transition: transform 0.15s; }
+.train details[open] .chevron { transform: rotate(-135deg); }
+.train .more { padding: 0 4px 12px calc(7.5rem + 20px); }
+.train .more small + small { margin-top: 2px; }
 .train .arrow { font-size: 1.6rem; text-align: center; }
 .train .when b { font-size: 1.2rem; font-variant-numeric: tabular-nums; }
 .train small { display: block; color: var(--muted); font-size: 0.85rem; font-weight: 400; }

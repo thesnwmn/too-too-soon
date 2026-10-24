@@ -132,13 +132,22 @@ const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`)
 /** RTT's names for the timing points, for a spot set up without its own. */
 const names = () => ({ a: state.data?.aName, b: state.data?.bName });
 
+/** The trains opened for more detail: kept across redraws, which happen every half minute. */
+const openRows = new Set<string>();
+
+/** One train in the list: compact, and a tap opens who runs it, what it is, where from. */
 function trainLine(p: Pass, spot: Spot, now: number): string {
   const d = direction(p, spot, names());
-  return `<li class="train ${p.passenger ? "" : "freight"}">
-    <span class="arrow" role="img" aria-label="towards ${esc(d.towards)}">${d.arrow}</span>
-    <span class="when"><b>${clock(p.time)}</b> <small>${inMinutes(p.time, now)}</small></span>
-    <span class="what">${esc(what(p))}${about(p) ? `<small>${esc(about(p))}</small>` : ""}<small>${esc(stopping(p, spot, names()))} · ${esc(sureness(p))}</small></span>
-  </li>`;
+  const more = [about(p), [`towards ${d.towards}`, sureness(p), p.headcode].filter(Boolean).join(" · ")].filter(Boolean);
+  return `<li class="train ${p.passenger ? "" : "freight"}"><details data-id="${esc(p.id)}"${openRows.has(p.id) ? " open" : ""}>
+    <summary>
+      <span class="arrow" role="img" aria-label="towards ${esc(d.towards)}">${d.arrow}</span>
+      <span class="when"><b>${clock(p.time)}</b> <small>${inMinutes(p.time, now)}</small></span>
+      <span class="what">${esc(what(p))}<small>${esc(stopping(p, spot, names()))}</small></span>
+      <span class="chevron" aria-hidden="true"></span>
+    </summary>
+    <div class="more">${more.map((m) => `<small>${esc(m)}</small>`).join("")}</div>
+  </details></li>`;
 }
 
 function watchView(spot: Spot, now: number): string {
@@ -213,6 +222,8 @@ function render(): void {
   if (state.picking) return;
   const now = Date.now();
   app.innerHTML = state.spot && !state.editing ? watchView(state.spot, now) : setupView();
+  for (const row of app.querySelectorAll<HTMLDetailsElement>("details[data-id]"))
+    row.addEventListener("toggle", () => (row.open ? openRows.add(row.dataset.id!) : openRows.delete(row.dataset.id!)));
   document.getElementById("edit")?.addEventListener("click", () => {
     if (demo) {
       // Leaving the demo: the link shouldn't bring it back on a reload.
