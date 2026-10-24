@@ -16,5 +16,5 @@
     <circle cx="176" cy="356" r="46"/><circle cx="296" cy="356" r="46"/><circle cx="388" cy="372" r="30"/>
   </g>
   <g fill="#fde047"><circle cx="176" cy="356" r="12"/><circle cx="296" cy="356" r="12"/><circle cx="388" cy="372" r="9"/></g>
-  <rect x="166" y="346" width="150" height="16" rx="8" fill="#fde047" transform="translate(12 10)"/>
+  <rect x="178" y="356" width="150" height="16" rx="8" fill="#fde047"/>
 </svg>

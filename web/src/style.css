@@ -5,11 +5,13 @@
   --muted: #475569;
   --card: #ffffff;
   --line: #cbd5e1;
-  --accent: #14532d;
+  --accent: #124a28;
   --accent-ink: #fde047;
-  --freight: #9a3412;
-  /* From the engine: its green, its brass, its red buffer beam. */
+  --freight: #6c2710;
+  /* From the engine: its green, its brass, its steam, its red buffer beam. The countdown is
+     --accent-ink on --accent (and on --freight) at 7:1 or more, for sunlight: test/contrast.test.ts. */
   --brand-ink: #14532d;
+  --smoke: #ffffff;
   --buffer: #dc2626;
   color-scheme: light dark;
 }
@@ -20,9 +22,10 @@
     --muted: #94a3b8;
     --card: #111827;
     --line: #334155;
-    --accent: #166534;
-    --freight: #c2410c;
+    --accent: #124a28;
+    --freight: #6c2710;
     --brand-ink: #fde047;
+    --smoke: #f1f5f9;
     --buffer: #ef4444;
   }
 }
@@ -64,7 +67,7 @@ button {
   border-radius: 12px;
   padding: 12px 18px;
   background: var(--accent);
-  color: #fff;
+  color: var(--smoke);
   min-height: 48px;
   cursor: pointer;
 }
@@ -76,7 +79,7 @@ button:disabled { opacity: 0.6; }
   padding: 20px 18px;
   border-radius: 20px;
   background: var(--accent);
-  color: #fff;
+  color: var(--smoke);
   text-align: center;
 }
 .next.freight { background: var(--freight); }
@@ -140,4 +143,4 @@ body.picking .note { flex: none; margin: 10px 0; }
 .pick-actions { flex: none; display: flex; gap: 10px; }
 .pick-actions button:last-child { flex: 1; }
 button.icon { padding: 8px 12px; display: inline-flex; align-items: center; justify-content: center; }
-.map-label { background: var(--accent); color: #fff; font: 600 13px/1.2 system-ui, sans-serif; padding: 4px 8px; border-radius: 8px; white-space: nowrap; box-shadow: 0 1px 3px rgb(0 0 0 / 0.3); }
+.map-label { background: var(--accent); color: var(--smoke); font: 600 13px/1.2 system-ui, sans-serif; padding: 4px 8px; border-radius: 8px; white-space: nowrap; box-shadow: 0 1px 3px rgb(0 0 0 / 0.3); }

@@ -1,7 +1,8 @@
 // Draws the home-screen PNGs from public/icon.svg: `pnpm --filter @too-too-soon/web icons`.
-// Run it after changing the logo. Square and full-bleed, with the engine shrunk into the middle
-// 80%, because Android crops a "maskable" icon to a circle and iOS rounds the corners itself.
-// Uses the Chromium that Playwright brings (installed globally where sessions run).
+// Run it after changing the logo. Square and full-bleed, with the engine shrunk to 84% so it
+// stays inside the circle Android crops a "maskable" icon to; iOS rounds the corners itself.
+// Needs Playwright and its Chromium: not a dependency, because sessions and CI runners have it
+// installed globally, and it's only needed when the logo changes.
 import { execSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
