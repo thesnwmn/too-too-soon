@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Pass } from "@too-too-soon/core";
-import { about, clock, countdown, direction, inMinutes, refreshAfter, stopping, sureness, what } from "../src/format.ts";
+import { about, clock, towardsText, countdown, direction, inMinutes, refreshAfter, stopping, sureness, what } from "../src/format.ts";
 
 const NOW = Date.parse("2026-10-24T14:00:00Z");
 const pass = (over: Partial<Pass>): Pass => ({ id: "x", time: NOW, basis: "forecast", direction: "ab", passenger: true, stopsBefore: false, stopsAfter: false, timeA: NOW, timeB: NOW, ...over });
@@ -37,6 +37,17 @@ describe("the words", () => {
     // As RTT sent 3S84: no operator's name, out from the sidings and back.
     expect(about(pass({ passenger: false, origin: "Effingham Jn. C.H.S.", destination: "Effingham Jn. C.H.S." }))).toBe("from Effingham Jn. C.H.S. and back");
     expect(about(pass({}))).toBe("");
+  });
+  it("at a one-point spot, says where it's heading and whether it stops there", () => {
+    const spot = { name: "Woking", a: "WOK", f: 0, aName: "Woking" };
+    expect(direction(pass({ direction: "at", destination: "Weymouth" }), spot)).toEqual({ arrow: "➜", towards: "Weymouth" });
+    expect(stopping(pass({ direction: "at", stopsBefore: true, stopsAfter: true }), spot)).toBe("stops at Woking");
+    expect(stopping(pass({ direction: "at" }), spot)).toBe("fast: not stopping");
+    // One that ends its journey here isn't heading anywhere.
+    expect(towardsText(direction(pass({ direction: "at", endsHere: true, destination: "Woking", stopsBefore: true }), spot))).toBe("ends here");
+    expect(stopping(pass({ direction: "at", endsHere: true, stopsBefore: true }), spot)).toBe("ends at Woking");
+    expect(what(pass({ direction: "at", endsHere: true, coaches: 4, origin: "London Waterloo", destination: "Woking" }))).toBe("4 coaches from London Waterloo");
+    expect(towardsText(direction(pass({ direction: "at", destination: "Weymouth" }), spot))).toBe("towards Weymouth");
   });
   it("names the station it stops at, whichever way it's going", () => {
     const spot = { name: "B", a: "BKO", b: "WOK", f: 0.5, aName: "Brookwood", bName: "Woking" };

@@ -1,9 +1,9 @@
 // The page: a watch view (a big countdown to the next train, then the ones after) and a
 // set-up form. It asks only the Worker (api/next); the demo runs on recorded data instead.
-import { withDemoClasses, demoLineUps, type ErrorResponse, type NextResponse, parseSpot, type Pass, predictPasses, type Spot, spotParams, upcoming } from "@too-too-soon/core";
+import { withDemoClasses, demoLineUps, type ErrorResponse, type NextResponse, parseSpot, type Pass, predictAt, predictPasses, type Spot, spotParams, upcoming } from "@too-too-soon/core";
 import { logo, wordmark } from "./brand.ts";
 import { loadPlaces, placeField, resolvePlace, wirePlaceField } from "./places.ts";
-import { about, clock, countdown, direction, inMinutes, refreshAfter, stopping, sureness, what } from "./format.ts";
+import { about, clock, towardsText, countdown, direction, inMinutes, refreshAfter, stopping, sureness, what } from "./format.ts";
 
 const app = document.getElementById("app")!;
 const params = new URLSearchParams(location.search);
@@ -62,12 +62,18 @@ function useSpot(spot: Spot, save = true): void {
 let demoAnchor = Date.now();
 
 function demoData(now: number): NextResponse {
-  let passes = upcoming(predictPasses(demoLineUps(demoAnchor).a, demoLineUps(demoAnchor).b, state.spot?.f ?? DEMO_SPOT.f), now);
+  // A one-point spot sees the trains at the demo's first point; otherwise between the two.
+  const one = state.spot !== undefined && !state.spot.b;
+  const at = (t: number) => {
+    const ups = demoLineUps(t);
+    return upcoming(one ? predictAt(ups.a) : predictPasses(ups.a, ups.b, state.spot?.f ?? DEMO_SPOT.f), now);
+  };
+  let passes = at(demoAnchor);
   if (passes.length < 4) {
     demoAnchor = now;
-    passes = upcoming(predictPasses(demoLineUps(now).a, demoLineUps(now).b, state.spot?.f ?? DEMO_SPOT.f), now);
+    passes = at(now);
   }
-  return { generatedAt: now, passes: withDemoClasses(passes), aName: "Ashby Junction", bName: "Bramford" };
+  return { generatedAt: now, passes: withDemoClasses(passes), aName: "Ashby Junction", bName: one ? undefined : "Bramford" };
 }
 
 let timer: number | undefined;
@@ -139,10 +145,10 @@ const openRows = new Set<string>();
 /** One train in the list: compact, and a tap opens who runs it, what it is, where from. */
 function trainLine(p: Pass, spot: Spot, now: number): string {
   const d = direction(p, spot, names());
-  const more = [about(p), [`towards ${d.towards}`, sureness(p), p.headcode].filter(Boolean).join(" · ")].filter(Boolean);
+  const more = [about(p), [towardsText(d), sureness(p), p.headcode].filter(Boolean).join(" · ")].filter(Boolean);
   return `<li class="train ${p.passenger ? "" : "freight"}"><details data-id="${esc(p.id)}"${openRows.has(p.id) ? " open" : ""}>
     <summary>
-      <span class="arrow" role="img" aria-label="towards ${esc(d.towards)}">${d.arrow}</span>
+      <span class="arrow" role="img" aria-label="${esc(towardsText(d))}">${d.arrow}</span>
       <span class="when"><b>${clock(p.time)}</b> <small>${inMinutes(p.time, now)}</small></span>
       <span class="what">${esc(what(p))}<small>${esc(stopping(p, spot, names()))}</small></span>
       <span class="chevron" aria-hidden="true"></span>
@@ -164,7 +170,7 @@ function watchView(spot: Spot, now: number): string {
     hero = `<section class="next ${next.passenger ? "" : "freight"}" aria-label="Next train">
       <p class="label">Next too too</p>
       <p class="count" data-time="${next.time}">${countdown(next.time, now)}</p>
-      <p class="dir"><span aria-hidden="true">${d.arrow}</span> towards ${esc(d.towards)}</p>
+      <p class="dir"><span aria-hidden="true">${d.arrow}</span> ${esc(towardsText(d))}</p>
       <p class="detail">${esc(what(next))}</p>
       ${about(next) ? `<p class="detail small">${esc(about(next))}</p>` : ""}
       <p class="detail small">${clock(next.time)} · ${esc(stopping(next, spot, names()))} · ${esc(sureness(next))}${next.headcode ? ` · ${esc(next.headcode)}` : ""}</p>
@@ -176,7 +182,7 @@ function watchView(spot: Spot, now: number): string {
     state.error && data && esc(state.error),
     data?.stale && `Couldn't ask Realtime Trains just now: this list is from ${age} min ago.`,
     data?.limited && "Realtime Trains says its live data is limited: times may be timetable only.",
-    data?.stoppingOnly && `Only trains that stop at ${esc(spot.aName ?? data.aName ?? spot.a)} and ${esc(spot.bName ?? data.bName ?? spot.b)} are listed: fast trains and freight may go by too.`,
+    data?.stoppingOnly && `Only trains that stop at ${esc(spot.aName ?? data.aName ?? spot.a)}${spot.b ? ` and ${esc(spot.bName ?? data.bName ?? spot.b)}` : ""} are listed: fast trains and freight may go by too.`,
   ].filter(Boolean);
   return `<header>
       <div class="brand">${logo}<div>${wordmark("small")}<h1>${esc(spot.name)}</h1></div></div>
@@ -187,7 +193,7 @@ function watchView(spot: Spot, now: number): string {
     ${notes.map((n) => `<p class="note">${n}</p>`).join("")}
     <footer>
       <button type="button" id="refresh" class="ghost" ${state.loading ? "disabled" : ""}>${state.loading ? "Asking…" : "Refresh"}</button>
-      <p>Times are estimates between ${esc(spot.aName ?? spot.a)} and ${esc(spot.bName ?? spot.b)}: allow a couple of minutes either way. Data from <a href="https://www.realtimetrains.co.uk/">Realtime Trains</a> and Network Rail.</p>
+      <p>${spot.b ? `Times are estimates between ${esc(spot.aName ?? spot.a)} and ${esc(spot.bName ?? spot.b)}: allow a couple of minutes either way.` : `Times are when each train leaves or passes ${esc(spot.aName ?? data?.aName ?? spot.a)} (or arrives, where it ends there).`} Data from <a href="https://www.realtimetrains.co.uk/">Realtime Trains</a> and Network Rail.</p>
     </footer>`;
 }
 
@@ -196,18 +202,27 @@ function setupView(): string {
   const d = state.draft;
   const v = (x: string | number | undefined) => (x === undefined ? "" : esc(String(x)));
   const val = (k: string, x: string | number | undefined) => v(d ? d[k] : x);
+  // One place or between two: as the draft (or the map) says, else as the spot is; a new spot starts with one.
+  const mode = d?.mode ?? (d?.b || s?.b ? "two" : "one");
   return `<header><h1 class="brand">${logo}${wordmark()}</h1>${s ? `<button type="button" id="cancel" class="ghost">Cancel</button>` : ""}</header>
-    <p class="intro">How long till the next too too? Set up the spot you watch trains from: tap it on a map, or search for the stations or junctions either side (or type their codes).</p>
+    <p class="intro">How long till the next too too? Set up where you watch trains from: one station or junction, or a spot between two (a bridge, say). Search by name, or tap it on a map.</p>
     <button type="button" id="pick" class="wide">Pick on a map</button>
     ${state.error ? `<p class="note">${esc(state.error)}</p>` : ""}
-    <form id="setup">
-      <label>Name <input name="name" value="${val("name", s?.name)}" placeholder="Our bridge" maxlength="60"></label>
-      ${placeField("a", "Timing point A", { q: d?.aq, code: d ? d.a : s?.a, name: d ? d.an : s?.aName })}
-      ${placeField("b", "Timing point B", { q: d?.bq, code: d ? d.b : s?.b, name: d ? d.bn : s?.bName })}
-      <button type="button" id="swap" class="ghost">Swap A and B</button>
-      <label>How far from A to B is your spot? <output id="fout">${Math.round(Number(d?.f ?? s?.f ?? 0.5) * 100)}%</output>
-        <input type="range" name="f" min="0" max="1" step="0.01" value="${val("f", s?.f ?? 0.5)}">
-      </label>
+    <form id="setup" data-mode="${mode}">
+      <fieldset class="mode">
+        <legend>Where</legend>
+        <label><input type="radio" name="mode" value="one"${mode === "one" ? " checked" : ""}> One place</label>
+        <label><input type="radio" name="mode" value="two"${mode === "two" ? " checked" : ""}> Between two</label>
+      </fieldset>
+      ${placeField("a", `<span class="one-only">Station or junction</span><span class="two-only">Timing point A</span>`, { q: d?.aq, code: d ? d.a : s?.a, name: d ? d.an : s?.aName })}
+      <div class="two-only">
+        ${placeField("b", "Timing point B", { q: d?.bq, code: d ? d.b : s?.b, name: d ? d.bn : s?.bName })}
+        <button type="button" id="swap" class="ghost">Swap A and B</button>
+        <label>How far from A to B is your spot? <output id="fout">${Math.round(Number(d?.f ?? s?.f ?? 0.5) * 100)}%</output>
+          <input type="range" name="f" min="0" max="1" step="0.01" value="${val("f", s?.b ? s.f : 0.5)}">
+        </label>
+      </div>
+      <label>Name <input name="name" value="${val("name", s?.name)}" placeholder="${mode === "one" ? "Named after the place" : "Our bridge"}" maxlength="60"></label>
       <button type="submit">Show the trains</button>
     </form>
     <p class="intro"><a href="?demo">Try the demo</a> to see what it looks like.</p>`;
@@ -264,14 +279,23 @@ function render(): void {
     f.addEventListener("input", () => (document.getElementById("fout")!.textContent = `${Math.round(Number(f.value) * 100)}%`));
     wirePlaceField(form, "a");
     wirePlaceField(form, "b");
+    const nameBox = form.elements.namedItem("name") as HTMLInputElement;
+    for (const r of form.querySelectorAll<HTMLInputElement>("input[name=mode]"))
+      r.addEventListener("change", () => {
+        form.dataset.mode = r.value;
+        nameBox.placeholder = r.value === "one" ? "Named after the place" : "Our bridge";
+      });
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
       const fd = new FormData(form);
       const list = await loadPlaces();
       const q = new URLSearchParams();
-      for (const k of ["name", "f"]) if (String(fd.get(k) ?? "").trim()) q.set(k, String(fd.get(k)));
+      const two = fd.get("mode") === "two";
+      for (const k of two ? ["name", "f"] : ["name"]) if (String(fd.get(k) ?? "").trim()) q.set(k, String(fd.get(k)));
+      // A name made up from two places ("Between X and Y") gives way to the one place's own.
+      if (!two && /^Between .+ and .+$/.test(q.get("name") ?? "")) q.delete("name");
       const missing: string[] = [];
-      for (const k of ["a", "b"] as const) {
+      for (const k of two ? (["a", "b"] as const) : (["a"] as const)) {
         const p = resolvePlace(fd, k, list);
         if (p.code) q.set(k, p.code);
         else missing.push(k.toUpperCase());
@@ -279,7 +303,8 @@ function render(): void {
       }
       // No name typed: call it after the places, once they're known.
       if (!q.get("name") && q.get("an") && q.get("bn")) q.set("name", `Between ${q.get("an")} and ${q.get("bn")}`);
-      const r = missing.length ? { error: `Pick ${missing.join(" and ")} from the list as you type, or type ${missing.length > 1 ? "their codes" : "its code"}.` } : parseSpot(q);
+      const which = two ? missing.join(" and ") : "the place";
+      const r = missing.length ? { error: `Pick ${which} from the list as you type, or type ${missing.length > 1 ? "their codes" : "its code"}.` } : parseSpot(q);
       if ("error" in r) {
         state.error = r.error;
         state.draft = Object.fromEntries([...fd].map(([k, x]) => [k, String(x)]));
@@ -323,7 +348,7 @@ async function pick(): Promise<void> {
       state.picking = false;
       if (picked) {
         state.error = undefined;
-        state.draft = { ...state.draft, name: name || `Between ${picked.aName} and ${picked.bName}`, a: picked.a, b: picked.b, f: String(picked.f), an: picked.aName, bn: picked.bName, aq: picked.aName, bq: picked.bName };
+        state.draft = { ...state.draft, name: name || `Between ${picked.aName} and ${picked.bName}`, a: picked.a, b: picked.b, f: String(picked.f), an: picked.aName, bn: picked.bName, aq: picked.aName, bq: picked.bName, mode: "two" };
       }
       render();
     });

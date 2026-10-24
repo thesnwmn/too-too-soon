@@ -156,12 +156,33 @@ describe("/api/next", () => {
   });
   it("rejects bad spots without asking RTT", async () => {
     const rtt = fakeRtt();
-    for (const q of ["a=ASHBYJN", "a=ASHBYJN&b=BRAMFD&f=2", "a=../x&b=BRAMFD"]) expect((await handle(get(`/api/next?${q}`), env, rtt.deps)).status).toBe(400);
+    for (const q of ["b=BRAMFD", "a=ASHBYJN&b=BRAMFD&f=2", "a=../x&b=BRAMFD", "a=ASHBYJN&b=../x"]) expect((await handle(get(`/api/next?${q}`), env, rtt.deps)).status).toBe(400);
     expect(rtt.calls).toEqual([]);
   });
   it("says it isn't set up without a token", async () => {
     const r = await handle(get(SPOT), {}, fakeRtt().deps);
     expect(r.status).toBe(503);
+  });
+});
+
+describe("/api/next at one point", () => {
+  it("lists every train at the point, from one line-up, with where each is heading", async () => {
+    const trains = [
+      train({ id: "S1", direction: "ab", stopsAtA: true, destination: "Weymouth" }),
+      train({ id: "F1", at: 20, direction: "ba", passenger: false, headcode: "6M41", destination: "Wembley" }),
+      // Only at B: not at our point.
+      train({ id: "B1", at: 30, onlyAt: "b" }),
+    ];
+    const rtt = fakeRtt({ trains, refresh: true });
+    const r = await handle(get("/api/next?a=ASHBYJN&name=Ashby"), env, rtt.deps);
+    const body = (await r.json()) as NextResponse;
+    expect(r.status).toBe(200);
+    expect(body.passes.map((p) => [p.id.split(":")[1], p.direction, p.destination, p.stopsBefore])).toEqual([
+      ["S1", "at", "Weymouth", true],
+      ["F1", "at", "Wembley", false],
+    ]);
+    expect(body.bName).toBeUndefined();
+    expect(rtt.calls.filter((c) => c.url.includes("/gb-nr/location")).map((c) => new URL(c.url).searchParams.get("code"))).toEqual(["ASHBYJN"]);
   });
 });
 

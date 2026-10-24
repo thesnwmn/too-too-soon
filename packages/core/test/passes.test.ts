@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { best, rttTime, type RttLocationResponse, type RttService, type RttTimes, DEMO_TRAINS, type DemoTrain, liveDataLimited, lineUps, parseSpot, predictPasses, spotParams, trainClassOf, upcoming, withDemoClasses } from "../src/index.ts";
+import { best, rttTime, type RttLocationResponse, type RttService, type RttTimes, DEMO_TRAINS, type DemoTrain, liveDataLimited, lineUps, parseSpot, predictPasses, spotParams, predictAt, trainClassOf, upcoming, withDemoClasses } from "../src/index.ts";
 
 const NOW = Date.parse("2026-10-24T14:00:00Z");
 const MIN = 60_000;
@@ -204,5 +204,50 @@ describe("trainClassOf", () => {
     const [p] = predictPasses(ups.a, ups.b, 0.5);
     expect(p.allocationIndex).toBe(1);
     expect(withDemoClasses([p], [{ id: "Z1", headcode: "1Z01", at: 5, direction: "ab", run: 4, origin: "X", destination: "Y", trainClass: "444" }])[0].trainClass).toBe("444");
+  });
+});
+
+describe("predictAt, a one-point spot", () => {
+  const trains: DemoTrain[] = [
+    { id: "C1", headcode: "2B10", at: 5, direction: "ab", run: 4, late: 2, stopsAtA: true, origin: "London", destination: "Bramford" },
+    { id: "P1", headcode: "1A20", at: 8, direction: "ab", run: 3, origin: "London", destination: "Weymouth" },
+    { id: "X1", headcode: "2B12", at: 9, direction: "ab", run: 3, stopsAtA: true, origin: "London", destination: "Bramford", cancelled: true },
+  ];
+  const ups = lineUps(trains, NOW);
+  const passes = predictAt(ups.a);
+  it("lists each train at the point when it's there, soonest first, heading for its destination", () => {
+    expect(passes.map((p) => [p.id.split(":")[1], p.direction, p.destination])).toEqual([
+      ["C1", "at", "Bramford"],
+      ["P1", "at", "Weymouth"],
+    ]);
+  });
+  it("takes a calling train's departure, with its lateness, and a passing train's pass", () => {
+    expect(passes[0].time).toBe(NOW + 7 * 60_000);
+    expect(passes[0].late).toBe(2);
+    expect(passes[0].stopsBefore).toBe(true);
+    expect(passes[1].time).toBe(NOW + 8 * 60_000);
+    expect(passes[1].stopsBefore).toBe(false);
+  });
+  it("marks a train that ends or starts its journey at the point, with its arrival or departure", () => {
+    const ends: DemoTrain = { id: "T1", headcode: "2B30", at: 12, direction: "ab", run: 4, stopsAtA: true, origin: "London", destination: "Ashby" };
+    const starts: DemoTrain = { id: "S1", headcode: "5B31", at: 14, direction: "ab", run: 4, stopsAtA: true, passenger: false, origin: "Ashby Sidings", destination: "Bramford" };
+    const up = lineUps([ends, starts], NOW).a;
+    const [t, st] = up.services!;
+    t.temporalData = { arrival: t.temporalData!.arrival, displayAs: "TERMINATES" };
+    st.temporalData = { departure: st.temporalData!.departure, displayAs: "STARTS" };
+    const [p1, p2] = predictAt(up);
+    expect([p1.id.split(":")[1], p1.endsHere, p1.startsHere, p1.time]).toEqual(["T1", true, undefined, NOW + 11.5 * 60_000]);
+    expect([p2.id.split(":")[1], p2.startsHere, p2.passenger]).toEqual(["S1", true, false]);
+  });
+  it("keeps a reversing train's way out", () => {
+    const up = lineUps([{ id: "R1", headcode: "2B40", at: 20, direction: "ab", run: 4, stopsAtA: true, origin: "London", destination: "London" }], NOW).a;
+    const first = up.services![0];
+    up.services = [{ ...first, temporalData: { arrival: first.temporalData!.arrival, displayAs: "CALL" } }, first];
+    expect(predictAt(up)[0].time).toBe(NOW + 20 * 60_000);
+  });
+  it("round-trips a one-point spot through its link, with no b and no f", () => {
+    const r = parseSpot(new URLSearchParams("a=wok&an=Woking"));
+    expect(r).toEqual({ spot: { name: "Woking", a: "WOK", f: 0, aName: "Woking" } });
+    if ("spot" in r) expect(spotParams(r.spot).toString()).toBe("name=Woking&a=WOK&an=Woking");
   });
 });
