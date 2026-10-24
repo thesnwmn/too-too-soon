@@ -277,6 +277,8 @@ function render(): void {
         else missing.push(k.toUpperCase());
         if (p.name) q.set(`${k}n`, p.name);
       }
+      // No name typed: call it after the places, once they're known.
+      if (!q.get("name") && q.get("an") && q.get("bn")) q.set("name", `Between ${q.get("an")} and ${q.get("bn")}`);
       const r = missing.length ? { error: `Pick ${missing.join(" and ")} from the list as you type, or type ${missing.length > 1 ? "their codes" : "its code"}.` } : parseSpot(q);
       if ("error" in r) {
         state.error = r.error;

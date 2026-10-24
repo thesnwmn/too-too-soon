@@ -16,6 +16,7 @@ describe("resolvePlace", () => {
     expect(resolvePlace(form({ bq: "wokingj" }), "b", list)).toEqual({ code: "WOKINGJ", name: "Woking Jn" });
   });
   it("won't send a word as a code when there's a list to check it against", () => expect(resolvePlace(form({ aq: "Bath" }), "a", list)).toEqual({}));
+  it("takes a code typed in capitals that the list doesn't have", () => expect(resolvePlace(form({ aq: "CLPHMJC" }), "a", list)).toEqual({ code: "CLPHMJC" }));
   it("takes anything code-shaped when there's no list", () => {
     expect(resolvePlace(form({ aq: "clphmjn" }), "a")).toEqual({ code: "CLPHMJN" });
     expect(resolvePlace(form({ aq: "somewhere odd" }), "a")).toEqual({});
