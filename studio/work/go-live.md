@@ -3,7 +3,7 @@ title: The live site works at our bridge
 kind: test
 role: tester
 size: S
-status: shaped
+status: ready
 milestone: m1-first-trains
 needs: [deploy, one-time-setup, our-bridge, detailed-mode]
 ---
@@ -25,3 +25,4 @@ Accuracy tuning (`its-here`).
 - 2026-10-23 after #7: times right (at 00:21 UK time the next trains showed 00:22, 00:23 …). Still only trains stopping at both ends: new ask `detailed-mode`.
 - 2026-10-23 the producer sent their bridge as a Google Maps short link; sessions can't reach Google, so `probe.yml` learned `place` (a map link or lat,lon): it finds the timing points with `locate` on GitHub's runners and probes them.
 - 2026-10-24 the producer's bridge: 51.30831, -0.59407, 100 m from the South West Main Line between Woking and Brookwood. OSM has no `ref:tiploc` within 8 km there, so the picker now falls back to stations' `ref:crs` (#14).
+- 2026-10-24 ready: detailed mode is on (RTT+), and the bridge is BKO to WOK, f 0.52. Left: a daytime probe there, and a trip report.

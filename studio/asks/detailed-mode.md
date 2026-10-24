@@ -1,7 +1,7 @@
 ---
 title: Passing trains and freight need RTT's detailed mode. Pay for it, or live without?
 from: release
-status: open
+status: answered
 blocks: [go-live]
 default: Live without for now. The site lists trains that stop at both timing points, which is most trains on suburban lines; it says plainly that fast trains and freight may be missing.
 expires: after 3 sessions
@@ -14,3 +14,6 @@ Options:
 - **Ask RTT, or pay** (recommended if your bridge has fast trains or freight): RTT's paid self-service plans start at about £4 a month (hobbyist); check on api-portal.rtt.io which plan includes detailed mode, or ask hello@realtimetrains.com whether the free plan can have it for personal use. Nothing in the code changes: the next `/api/info` shows `detailed: true`.
 - **Network Rail's own feeds** (free, full detail): needs an always-on computer (a Raspberry Pi or a small VM) and a few sessions of work. See the notes' always-on hosting doc.
 - **Live without for now**: fine if your bridge is between stations where everything stops.
+
+## Answer
+2026-10-24: the producer upgraded to RTT+ ("Detail mode should be on now"). The probe that evening: entitlements `allowDetailed` and `allowAllocationsPassenger`; 35 trains Brookwood to Woking against 12 that morning, with fast trains and freight. Allocations also gave the class of train (`train-details`).
