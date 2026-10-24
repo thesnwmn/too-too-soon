@@ -38,6 +38,12 @@ describe("the words", () => {
     expect(about(pass({ passenger: false, origin: "Effingham Jn. C.H.S.", destination: "Effingham Jn. C.H.S." }))).toBe("from Effingham Jn. C.H.S. and back");
     expect(about(pass({}))).toBe("");
   });
+  it("at a one-point spot, says where it's heading and whether it stops there", () => {
+    const spot = { name: "Woking", a: "WOK", f: 0, aName: "Woking" };
+    expect(direction(pass({ direction: "at", destination: "Weymouth" }), spot)).toEqual({ arrow: "➜", towards: "Weymouth" });
+    expect(stopping(pass({ direction: "at", stopsBefore: true, stopsAfter: true }), spot)).toBe("stops at Woking");
+    expect(stopping(pass({ direction: "at" }), spot)).toBe("fast: not stopping");
+  });
   it("names the station it stops at, whichever way it's going", () => {
     const spot = { name: "B", a: "BKO", b: "WOK", f: 0.5, aName: "Brookwood", bName: "Woking" };
     expect(stopping(pass({ direction: "ab", stopsAfter: true }), spot)).toBe("stopping at Woking");

@@ -6,8 +6,8 @@ import type { RttLocationResponse, RttService, RttServiceResponse, RttTimes } fr
 /** How sure a time is: a train has really passed the first point, has live forecasts, or only a timetable. */
 export type Basis = "actual" | "forecast" | "timetable";
 
-/** "ab" heads from A towards B; "ba" from B towards A. */
-export type Direction = "ab" | "ba";
+/** "ab" heads from A towards B; "ba" from B towards A; "at" is at a one-point spot, heading for its destination. */
+export type Direction = "ab" | "ba" | "at";
 
 export interface Pass {
   /** RTT's unique identity: the service and its date. */
@@ -167,6 +167,45 @@ export function predictPasses(atA: RttLocationResponse, atB: RttLocationResponse
       stopsAfter: stops(second),
       timeA: direction === "ab" ? from.time : toTime,
       timeB: direction === "ab" ? toTime : from.time,
+    });
+  }
+  return passes.sort((x, y) => x.time - y.time);
+}
+
+/**
+ * The trains at a single timing point (a one-point spot), soonest first: each when it's there,
+ * as it leaves (or passes, or arrives where it ends), heading for its destination.
+ */
+export function predictAt(at: RttLocationResponse): Pass[] {
+  const passes: Pass[] = [];
+  const seen = new Set<string>();
+  for (const s of at.services ?? []) {
+    const id = s.scheduleMetadata?.uniqueIdentity;
+    if (!id || gone(s) || seen.has(id)) continue;
+    const when = leaving(s) ?? reaching(s);
+    if (!when) continue;
+    seen.add(id);
+    const meta = s.scheduleMetadata ?? {};
+    const lateMs = when.basis !== "timetable" && when.scheduled !== undefined ? when.time - when.scheduled : undefined;
+    const coaches = s.locationMetadata?.numberOfVehicles;
+    const here = stops(s);
+    passes.push({
+      id,
+      time: when.time,
+      basis: when.basis,
+      direction: "at",
+      headcode: meta.trainReportingIdentity,
+      passenger: meta.inPassengerService !== false,
+      operator: meta.operator?.name,
+      origin: s.origin?.[0]?.location?.description,
+      destination: s.destination?.[s.destination.length - 1]?.location?.description,
+      coaches: coaches && coaches > 0 ? coaches : undefined,
+      allocationIndex: s.locationMetadata?.allocationIndex,
+      late: lateMs === undefined ? undefined : Math.round(lateMs / 60_000),
+      stopsBefore: here,
+      stopsAfter: here,
+      timeA: when.time,
+      timeB: when.time,
     });
   }
   return passes.sort((x, y) => x.time - y.time);

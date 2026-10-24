@@ -23,10 +23,11 @@ export function inMinutes(t: number, now: number): string {
   return `in ${m} min`;
 }
 
-/** Which way, as an arrow and a place: A is on the left, as on the set-up form. */
+/** Which way, as an arrow and a place: A is on the left, as on the set-up form. At a one-point spot, where it's heading. */
 export function direction(p: Pass, spot: Spot, names: { a?: string; b?: string } = {}): { arrow: string; towards: string } {
+  if (p.direction === "at") return { arrow: "➜", towards: p.destination ?? "somewhere" };
   const a = spot.aName ?? names.a ?? spot.a;
-  const b = spot.bName ?? names.b ?? spot.b;
+  const b = spot.bName ?? names.b ?? spot.b ?? "";
   return p.direction === "ab" ? { arrow: "➡", towards: b } : { arrow: "⬅", towards: a };
 }
 
@@ -67,7 +68,8 @@ export function sureness(p: Pass): string {
 /** Whether it slows down near here, naming the station: worth knowing at a bridge by one. A fast one is the exciting one. */
 export function stopping(p: Pass, spot: Spot, names: { a?: string; b?: string } = {}): string {
   const a = spot.aName ?? names.a ?? spot.a;
-  const b = spot.bName ?? names.b ?? spot.b;
+  const b = spot.bName ?? names.b ?? spot.b ?? "";
+  if (p.direction === "at") return p.stopsBefore ? `stops at ${a}` : "fast: not stopping";
   const [before, after] = p.direction === "ab" ? [a, b] : [b, a];
   if (p.stopsBefore && p.stopsAfter) return `stops at ${before} and ${after}`;
   if (p.stopsBefore) return `just left ${before}`;

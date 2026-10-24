@@ -1,6 +1,6 @@
 // The Worker's routes. Everything it needs from outside (fetch, the clock, the cache) is
 // passed in, so the tests run it against recorded responses.
-import { type ErrorResponse, type InfoResponse, liveDataLimited, type NextResponse, type Pass, parseSpot, predictPasses, type RttLocationResponse, trainClassOf, upcoming } from "@too-too-soon/core";
+import { type ErrorResponse, type InfoResponse, liveDataLimited, type NextResponse, type Pass, parseSpot, predictAt, predictPasses, type RttLocationResponse, trainClassOf, upcoming } from "@too-too-soon/core";
 import { osm } from "./osm.ts";
 import { accessToken, type Deps, info, lineUp, RttError, service, tidyToken } from "./rtt.ts";
 
@@ -139,10 +139,10 @@ async function withClasses(passes: Pass[], secret: string, deps: HandlerDeps): P
 }
 
 /** Whatever went wrong, the page gets JSON it can show, never the platform's error page. */
-function failure(e: unknown, a: string, b: string): Response {
+function failure(e: unknown, codes: string[]): Response {
   if (e instanceof RttError) {
     const msg =
-      e.status === 429 ? "Realtime Trains says we've asked too often: try again in a minute." : e.status === 401 || e.status === 403 ? "Realtime Trains didn't accept the token: check /api/info." : e.status === 400 ? `Realtime Trains didn't understand the request: is "${a}" or "${b}" a real timing point?` : "Realtime Trains didn't answer: try again in a minute.";
+      e.status === 429 ? "Realtime Trains says we've asked too often: try again in a minute." : e.status === 401 || e.status === 403 ? "Realtime Trains didn't accept the token: check /api/info." : e.status === 400 ? `Realtime Trains didn't understand the request: is ${codes.map((c) => `"${c}"`).join(" or ")} a real timing point?` : "Realtime Trains didn't answer: try again in a minute.";
     return json({ error: msg }, e.status === 429 ? 429 : 502, e.retryAfter ? { "Retry-After": String(e.retryAfter) } : {});
   }
   console.error("api/next failed", e);
@@ -155,25 +155,28 @@ async function next(url: URL, env: Env, deps: HandlerDeps): Promise<Response> {
   const { a, b, f } = parsed.spot;
   if (!env.RTT_TOKEN) return json({ error: "The live data isn't set up yet: the Worker has no Realtime Trains token. Try the demo (?demo)." }, 503);
   try {
-    const [atA, atB] = await Promise.all([sharedLineUp(a, env.RTT_TOKEN, deps), sharedLineUp(b, env.RTT_TOKEN, deps)]);
+    // A one-point spot is one line-up; a spot between two points, two.
+    const ups = await Promise.all([a, ...(b ? [b] : [])].map((code) => sharedLineUp(code, env.RTT_TOKEN!, deps)));
+    const [atA, atB] = ups;
+    const stale = ups.some((u) => u.stale);
     // A swapped token says what it may do: detailed mode lists trains that pass without calling,
     // and an allocations entitlement says what each train is.
     const ents = await accessToken(env.RTT_TOKEN, deps).then((t) => t.entitlements).catch(() => undefined);
-    let passes = upcoming(predictPasses(atA.data, atB.data, f), deps.now());
+    let passes = upcoming(atB ? predictPasses(atA.data, atB.data, f) : predictAt(atA.data), deps.now());
     // Not while RTT is turning the line-ups down: the classes can wait.
-    if (!atA.stale && !atB.stale && ents?.some((e) => e.startsWith("allowAllocations"))) passes = await withClasses(passes, env.RTT_TOKEN, deps);
+    if (!stale && ents?.some((e) => e.startsWith("allowAllocations"))) passes = await withClasses(passes, env.RTT_TOKEN, deps);
     const body: NextResponse = {
-      generatedAt: Math.min(atA.at, atB.at),
+      generatedAt: Math.min(...ups.map((u) => u.at)),
       passes,
       aName: atA.data.query?.location?.description,
-      bName: atB.data.query?.location?.description,
+      bName: atB?.data.query?.location?.description,
     };
-    if (atA.stale || atB.stale) body.stale = true;
-    if (liveDataLimited(atA.data, atB.data)) body.limited = true;
+    if (stale) body.stale = true;
+    if (liveDataLimited(...ups.map((u) => u.data))) body.limited = true;
     if (ents && !ents.includes("allowDetailed")) body.stoppingOnly = true;
     return json(body);
   } catch (e) {
-    return failure(e, a, b);
+    return failure(e, b ? [a, b] : [a]);
   }
 }
 

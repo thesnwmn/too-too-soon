@@ -134,6 +134,15 @@ footer button { margin-bottom: 8px; }
 form { display: grid; gap: 14px; margin: 16px 0; }
 label { display: grid; gap: 4px; font-weight: 600; }
 .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+/* One place, or between two (the set-up form's data-mode). */
+.mode { border: 0; padding: 0; margin: 0; display: flex; gap: 8px; flex-wrap: wrap; }
+.mode legend { font-weight: 600; padding: 0; margin-bottom: 4px; }
+.mode label { display: flex; align-items: center; gap: 8px; font-weight: 400; border: 2px solid var(--line); border-radius: 12px; padding: 8px 14px; min-height: 44px; }
+.mode label:has(input:checked) { border-color: var(--accent); background: var(--card); font-weight: 600; }
+.mode input { accent-color: var(--accent); width: 20px; height: 20px; min-height: 0; margin: 0; }
+form[data-mode="one"] .two-only, form[data-mode="two"] .one-only { display: none; }
+form .two-only:not(span) { display: grid; gap: 14px; }
+form[data-mode="one"] div.two-only { display: none; }
 /* A place search box (src/places.ts): the suggestions open under it, over what follows. */
 .place { position: relative; display: grid; gap: 4px; }
 .place > label { font-weight: 600; }

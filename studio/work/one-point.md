@@ -4,6 +4,7 @@ kind: build
 role: engineer
 size: M
 status: doing
+pr: 24
 needs: [places]
 ---
 

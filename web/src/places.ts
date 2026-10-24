@@ -18,17 +18,17 @@ export function loadPlaces(): Promise<Places | undefined> {
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
-/** A search box for point `k` ("a" or "b"): the text box, a hidden code and name, and the suggestions under it. */
-export function placeField(k: "a" | "b", label: string, values: { q?: string; code?: string; name?: string }): string {
+/** A search box for point `k` ("a" or "b"): the text box, a hidden code and name, and the suggestions under it. `labelHtml` is the page's own markup, never what's typed. */
+export function placeField(k: "a" | "b", labelHtml: string, values: { q?: string; code?: string; name?: string }): string {
   const shown = values.q ?? values.name ?? values.code ?? "";
   return `<div class="place">
-      <label for="${k}q">${esc(label)}</label>
+      <label for="${k}q">${labelHtml}</label>
       <input id="${k}q" name="${k}q" value="${esc(shown)}" placeholder="Search: a station or junction" autocomplete="off" autocapitalize="words" spellcheck="false"
         role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="${k}-list">
       <input type="hidden" name="${k}" value="${esc(values.code ?? "")}">
       <input type="hidden" name="${k}n" value="${esc(values.name ?? "")}">
       <small class="chosen" id="${k}-chosen">${values.code ? `${esc(values.code)}` : ""}</small>
-      <ul class="suggest" id="${k}-list" role="listbox" aria-label="${esc(label)}: places" hidden></ul>
+      <ul class="suggest" id="${k}-list" role="listbox" aria-label="Places" hidden></ul>
       <span class="sr-only" id="${k}-count" aria-live="polite"></span>
     </div>`;
 }
