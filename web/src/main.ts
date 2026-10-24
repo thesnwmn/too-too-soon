@@ -166,7 +166,7 @@ function watchView(spot: Spot, now: number): string {
   ].filter(Boolean);
   return `<header>
       <div class="brand">${logo}<div>${wordmark("small")}<h1>${esc(spot.name)}</h1></div></div>
-      <button type="button" id="edit" class="ghost">Change spot</button>
+      <button type="button" id="edit" class="ghost" aria-label="Change spot">Change<span class="wide-only"> spot</span></button>
     </header>
     ${hero}
     ${rest.length ? `<ol class="list">${rest.slice(0, 8).map((p) => trainLine(p, spot, now)).join("")}</ol>` : ""}

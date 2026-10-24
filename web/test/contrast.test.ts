@@ -24,5 +24,9 @@ describe("the countdown's contrast", () => {
       expect(contrast(v["accent-ink"], v.freight)).toBeGreaterThanOrEqual(7);
       expect(contrast(v.smoke, v.accent)).toBeGreaterThanOrEqual(7);
     });
+    it(`has freight and the word mark readable as text on the page, ${mode}`, () => {
+      expect(contrast(v["freight-ink"], v.bg)).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(v["brand-ink"], v.bg)).toBeGreaterThanOrEqual(4.5);
+    });
   }
 });

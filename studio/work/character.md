@@ -3,7 +3,7 @@ title: A logo and a word mark with character
 kind: build
 role: designer
 size: M
-status: doing
+status: trial
 pr: 18
 ---
 
@@ -25,3 +25,4 @@ The producer, 2026-10-24: "I'd like to add more character to the design. Maybe a
 
 ## Log
 - 2026-10-24 shaped by the Director from the producer's word; the Designer takes it.
+- 2026-10-24 started (#18). Drew three directions (an engine, a cloud, a badge: `studio/design/character/`) and shipped A: a yellow engine puffing on green as the icon, drawn into the page, and "Too Too Soon" with each "oo" as driving wheels on a coupling rod. The countdown's yellow on green was 6.9:1 (5.4:1 in dark); now 7.8:1, with freight 8.2:1, held by `web/test/contrast.test.ts`. The Tester caught freight text vanishing in dark mode (its own colour now) and the spot's name wrapping at 360 px ("Change" there). Ask `logo` for B or C; trial: does a child spot it as the train one? [Session](../sessions/2026-10-24-1330-character.md).
