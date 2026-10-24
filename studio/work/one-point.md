@@ -3,7 +3,7 @@ title: A spot can be just one station or timing point
 kind: build
 role: engineer
 size: M
-status: shaped
+status: doing
 needs: [places]
 ---
 
