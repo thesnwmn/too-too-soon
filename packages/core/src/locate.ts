@@ -42,7 +42,9 @@ export function overpassQuery(lat: number, lon: number, radius: number): string 
   const around = `(around:${Math.round(radius)},${lat.toFixed(6)},${lon.toFixed(6)})`;
   // Running lines only: sidings, yards and crossovers would snap a tap to the wrong track.
   // TIPLOCs are patchy in OSM (none for miles around Woking), but stations nearly always have a CRS code.
-  return `[out:json][timeout:25];way["railway"="rail"][!"service"]${around};out geom;(node["ref:tiploc"]${around};node["railway"~"^(station|halt)$"]["ref:crs"]${around};);out;`;
+  // Tracks as skeletons (node ids and positions, no tags: much less to send around a busy
+  // junction), timing points with their tags (the code and the name).
+  return `[out:json][timeout:60];way["railway"="rail"][!"service"]${around};out skel geom qt;(node["ref:tiploc"]${around};node["ref:crs"]${around};);out qt;`;
 }
 
 const R = 6_371_000;

@@ -27,8 +27,9 @@ export interface Picked {
 }
 
 async function ask(lat: number, lon: number, radius: number, signal: AbortSignal): Promise<OsmElement[]> {
-  // Overpass can be slow or stuck: give up after 30 s rather than "Looking…" for ever.
-  const timeout = AbortSignal.any([signal, AbortSignal.timeout(30_000)]);
+  // Overpass can be slow (half a minute around a busy junction) or stuck: give up after 60 s
+  // rather than "Looking…" for ever.
+  const timeout = AbortSignal.any([signal, AbortSignal.timeout(60_000)]);
   const q = new URLSearchParams({ lat: lat.toFixed(5), lon: lon.toFixed(5), radius: String(radius) });
   let r = await fetch(`api/osm?${q}`, { signal: timeout });
   if (r.status === 404 && !(r.headers.get("Content-Type") ?? "").includes("json")) {
@@ -103,11 +104,12 @@ export function openPicker(root: HTMLElement, done: (picked: Picked | undefined)
     markers.forEach((m) => m.remove());
     markers = [new maplibregl.Marker({ color: "#64748b" }).setLngLat(e.lngLat).addTo(map)];
     status.textContent = "Looking along the track…";
+    const slow = window.setTimeout(() => mine === asking && (status.textContent = "Still looking: OpenStreetMap can take half a minute around busy lines…"), 10_000);
     try {
       // A new tap cancels the last one's lookup, so taps don't pile up against the server's limit.
       inFlight?.abort();
       inFlight = new AbortController();
-      const found = await find(e.lngLat.lat, e.lngLat.lng, inFlight.signal);
+      const found = await find(e.lngLat.lat, e.lngLat.lng, inFlight.signal).finally(() => window.clearTimeout(slow));
       if (mine !== asking) return;
       if (!found) {
         status.textContent = "Couldn't find a railway track with timing points either side here. Tap right on the track, or type the codes instead.";

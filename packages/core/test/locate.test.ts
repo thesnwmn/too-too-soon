@@ -92,8 +92,8 @@ describe("geometry and the query", () => {
   it("measures 500 m steps", () => expect(distance(at(0), at(1))).toBeCloseTo(500, -1));
   it("asks for rail ways with geometry and TIPLOC nodes around the tap", () => {
     const q = overpassQuery(51.5, -0.2, 4000);
-    expect(q).toContain('way["railway"="rail"][!"service"](around:4000,51.500000,-0.200000);out geom;');
+    expect(q).toContain('way["railway"="rail"][!"service"](around:4000,51.500000,-0.200000);out skel geom qt;');
     expect(q).toContain('node["ref:tiploc"](around:4000,51.500000,-0.200000);');
-    expect(q).toContain('node["railway"~"^(station|halt)$"]["ref:crs"](around:4000,51.500000,-0.200000);');
+    expect(q).toContain('node["ref:crs"](around:4000,51.500000,-0.200000);');
   });
 });
