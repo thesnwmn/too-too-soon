@@ -3,7 +3,7 @@
 // secret, which never reaches the page. `node .github/scripts/places.mjs web/public/places.json`.
 // If RTT can't be asked, it says so and writes nothing: the page then asks for codes instead.
 import { writeFileSync } from "node:fs";
-import { compactPlaces } from "../../packages/core/src/places.ts";
+import { compactPlaces, placesProblems } from "../../packages/core/src/places.ts";
 
 const RTT = "https://data.rtt.io";
 const out = process.argv[2];
@@ -33,5 +33,8 @@ const get = async (path, key) => {
 };
 const places = compactPlaces(await get("/data/locations_ungrouped", "locations"), await get("/data/stops", "stops"));
 const json = JSON.stringify(places);
+// The same check the health check makes: a list that's oddly big or the wrong shape isn't shipped.
+const problems = placesProblems(json);
+if (problems.length) warn(`The list doesn't look right (${problems.join("; ")}).`);
 writeFileSync(out, json);
 console.log(`${out}: ${places.stations.length} stations and ${places.others.length} other timing points, ${Math.round(json.length / 1024)} KB`);

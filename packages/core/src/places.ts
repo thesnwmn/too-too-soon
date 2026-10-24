@@ -49,6 +49,42 @@ export function compactPlaces(locations: RttLocation[], stops: RttStop[]): Place
   return { v: 1, stations: [...stations].map(([c, n]) => [n, c] as [string, string]).sort(byName), others: [...others].map(([c, n]) => [n, c] as [string, string]).sort(byName) };
 }
 
+/** The most the shipped list may weigh: about four times today's 365 KB would mean something's gone wrong. */
+export const PLACES_MAX_BYTES = 1_500_000;
+
+/** What's wrong with a place list, as shipped: nothing, if it's fit for the page. */
+export function placesProblems(json: string): string[] {
+  if (json.length > PLACES_MAX_BYTES) return [`${Math.round(json.length / 1024)} KB, over ${PLACES_MAX_BYTES / 1000} KB`];
+  let p: Partial<Places>;
+  try {
+    p = JSON.parse(json);
+  } catch {
+    return ["not JSON"];
+  }
+  const pair = (x: unknown) => Array.isArray(x) && x.length === 2 && typeof x[0] === "string" && x[0] !== "" && typeof x[1] === "string" && /^[A-Z0-9]{3,7}$/.test(x[1]);
+  const problems: string[] = [];
+  if (p.v !== 1) problems.push(`version ${String(p.v)}, not 1`);
+  if (!Array.isArray(p.stations) || p.stations.length === 0) problems.push("no stations");
+  else if (!p.stations.every(pair)) problems.push("a station isn't [name, code]");
+  if (!Array.isArray(p.others)) problems.push("no other timing points");
+  else if (!p.others.every(pair)) problems.push("a timing point isn't [name, code]");
+  return problems;
+}
+
+/**
+ * The place for what's typed in a search box but not picked: one whose name it is (any case or
+ * punctuation), else one whose code it is. Undefined when it's neither.
+ */
+export function placeFor(places: Places, typed: string): Place | undefined {
+  const q = fold(typed);
+  const code = typed.trim().toUpperCase();
+  for (const [list, station] of [[places.stations, true], [places.others, false]] as const) {
+    const hit = list.find(([n]) => fold(n) === q) ?? list.find(([, c]) => c === code);
+    if (hit) return { name: hit[0], code: hit[1], station };
+  }
+  return undefined;
+}
+
 /** Lower case, letters and digits only, "&" as "and", "St." as "st", RTT's "Jn" as "junction": what's compared. */
 const fold = (s: string) =>
   s

@@ -1,7 +1,7 @@
 // The set-up form's place search: type a station or junction's name, pick it, and its code and
 // name go in the form's hidden fields. The list (places.json, made at deploy time from RTT's own)
 // is fetched once, the first time a search box is used, and searched here: nothing per keystroke.
-import { type Place, type Places, searchPlaces } from "@too-too-soon/core";
+import { type Place, placeFor, type Places, searchPlaces } from "@too-too-soon/core";
 
 let list: Promise<Places | undefined> | undefined;
 
@@ -82,12 +82,19 @@ export function wirePlaceField(form: HTMLFormElement, k: "a" | "b"): void {
 }
 
 /**
- * The code for point `k` when the form is sent: the place picked, or what's typed if it's a
- * code. Undefined when there's text that's neither, so the form can say "pick from the list".
+ * The code for point `k` when the form is sent: the place picked; or, with the list, the place
+ * whose name or code is typed; or, without one, what's typed if it looks like a code. Nothing
+ * when it's none of these, so the form can say "pick from the list" (typing "Bath" and not
+ * picking shouldn't send BATH to RTT as a code).
  */
-export function resolvePlace(fd: FormData, k: "a" | "b"): { code?: string; name?: string } {
+export function resolvePlace(fd: FormData, k: "a" | "b", places?: Places): { code?: string; name?: string } {
   const picked = String(fd.get(k) ?? "").trim();
   if (picked) return { code: picked, name: String(fd.get(`${k}n`) ?? "").trim() || undefined };
   const typed = String(fd.get(`${k}q`) ?? "").trim();
+  if (!typed) return {};
+  if (places) {
+    const p = placeFor(places, typed);
+    return p ? { code: p.code, name: p.name } : {};
+  }
   return /^[A-Za-z0-9]{3,7}$/.test(typed) ? { code: typed.toUpperCase() } : {};
 }

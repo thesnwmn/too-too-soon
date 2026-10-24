@@ -2,7 +2,7 @@
 // set-up form. It asks only the Worker (api/next); the demo runs on recorded data instead.
 import { withDemoClasses, demoLineUps, type ErrorResponse, type NextResponse, parseSpot, type Pass, predictPasses, type Spot, spotParams, upcoming } from "@too-too-soon/core";
 import { logo, wordmark } from "./brand.ts";
-import { placeField, resolvePlace, wirePlaceField } from "./places.ts";
+import { loadPlaces, placeField, resolvePlace, wirePlaceField } from "./places.ts";
 import { about, clock, countdown, direction, inMinutes, refreshAfter, stopping, sureness, what } from "./format.ts";
 
 const app = document.getElementById("app")!;
@@ -197,7 +197,7 @@ function setupView(): string {
   const v = (x: string | number | undefined) => (x === undefined ? "" : esc(String(x)));
   const val = (k: string, x: string | number | undefined) => v(d ? d[k] : x);
   return `<header><h1 class="brand">${logo}${wordmark()}</h1>${s ? `<button type="button" id="cancel" class="ghost">Cancel</button>` : ""}</header>
-    <p class="intro">How long till the next too too? Set up the spot you watch trains from: tap it on a map, or search for the stations or junctions either side.</p>
+    <p class="intro">How long till the next too too? Set up the spot you watch trains from: tap it on a map, or search for the stations or junctions either side (or type their codes).</p>
     <button type="button" id="pick" class="wide">Pick on a map</button>
     ${state.error ? `<p class="note">${esc(state.error)}</p>` : ""}
     <form id="setup">
@@ -264,14 +264,15 @@ function render(): void {
     f.addEventListener("input", () => (document.getElementById("fout")!.textContent = `${Math.round(Number(f.value) * 100)}%`));
     wirePlaceField(form, "a");
     wirePlaceField(form, "b");
-    form.addEventListener("submit", (e) => {
+    form.addEventListener("submit", async (e) => {
       e.preventDefault();
       const fd = new FormData(form);
+      const list = await loadPlaces();
       const q = new URLSearchParams();
       for (const k of ["name", "f"]) if (String(fd.get(k) ?? "").trim()) q.set(k, String(fd.get(k)));
       const missing: string[] = [];
       for (const k of ["a", "b"] as const) {
-        const p = resolvePlace(fd, k);
+        const p = resolvePlace(fd, k, list);
         if (p.code) q.set(k, p.code);
         else missing.push(k.toUpperCase());
         if (p.name) q.set(`${k}n`, p.name);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compactPlaces, searchPlaces } from "../src/places.ts";
+import { compactPlaces, placeFor, placesProblems, searchPlaces } from "../src/places.ts";
 
 // As RTT sent them on 2026-10-24 (a few of 2,623 stops and 12,116 locations).
 const stops = [
@@ -66,5 +66,23 @@ describe("searchPlaces", () => {
   it("says nothing for nothing, and keeps to the limit", () => {
     expect(searchPlaces(places, "  ")).toEqual([]);
     expect(searchPlaces(places, "w", 2)).toHaveLength(2);
+  });
+});
+
+describe("placeFor", () => {
+  it("takes a name typed in full, or a code, but not a guess", () => {
+    expect(placeFor(places, "woking")?.code).toBe("WOK");
+    expect(placeFor(places, "St Albans City")?.code).toBe("SAC");
+    expect(placeFor(places, "clphmyd")?.name).toBe("Clapham Yard");
+    expect(placeFor(places, "Wokin")).toBeUndefined();
+    expect(placeFor(places, "BATH")).toBeUndefined();
+  });
+});
+
+describe("placesProblems", () => {
+  it("passes what compactPlaces makes, and says what's wrong with anything else", () => {
+    expect(placesProblems(JSON.stringify(places))).toEqual([]);
+    expect(placesProblems("{")).toEqual(["not JSON"]);
+    expect(placesProblems(JSON.stringify({ v: 2, stations: [["A", "AAA"]], others: [] }))).toEqual(["version 2, not 1"]);
   });
 });
