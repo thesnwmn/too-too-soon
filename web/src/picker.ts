@@ -73,7 +73,7 @@ export function openPicker(root: HTMLElement, done: (picked: Picked | undefined)
   copy.addEventListener("click", async () => {
     try {
       await navigator.clipboard.writeText(where);
-      status.textContent = `Copied where you tapped: ${where}`;
+      status.textContent = `Copied ${where}`;
     } catch {
       // No clipboard (an old browser, or not allowed): show it to copy by hand.
       window.prompt("Where you tapped:", where);
