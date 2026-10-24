@@ -22,3 +22,4 @@ Your settings, the rules you've given the studio, and what it has learned about 
 What the studio has learned from your feedback, each with where it came from.
 
 - The point is not standing around for 25 minutes with a child, and not arriving just as one goes by: [the notes](https://github.com/thesnwmn/notes/tree/main/too-too-soon).
+- The site should have character: fun for children, and obviously about trains (a steam-train logo, a word mark): the producer, 2026-10-24, via /director.
