@@ -3,7 +3,7 @@ title: A logo and a word mark with character
 kind: build
 role: designer
 size: M
-status: ready
+status: doing
 ---
 
 ## Why
