@@ -35,26 +35,29 @@ const byName = (x: [string, string], y: [string, string]) => x[0].localeCompare(
 export function compactPlaces(locations: RttLocation[], stops: RttStop[]): Places {
   const stations = new Map<string, string>();
   for (const s of stops) if (s.shortCode && s.description?.trim()) stations.set(s.shortCode.toUpperCase(), s.description.trim());
+  // A big station's platforms can be timing points of their own with the station's name: the station stands for them.
+  const stationNames = new Set([...stations.values()].map(fold));
   const others = new Map<string, string>();
   for (const l of locations) {
     const name = l.description?.trim();
     const code = l.longCode?.toUpperCase();
     if (!name || !code || !/^[A-Z0-9]{3,7}$/.test(code)) continue;
-    if (l.shortCode && stations.has(l.shortCode.toUpperCase())) continue;
+    if ((l.shortCode && stations.has(l.shortCode.toUpperCase())) || stationNames.has(fold(name))) continue;
     if (/\bbus( station| stop)?$/i.test(name)) continue;
     others.set(code, name);
   }
   return { v: 1, stations: [...stations].map(([c, n]) => [n, c] as [string, string]).sort(byName), others: [...others].map(([c, n]) => [n, c] as [string, string]).sort(byName) };
 }
 
-/** Lower case, letters and digits only, "&" as "and", "St." as "st": what's compared. */
+/** Lower case, letters and digits only, "&" as "and", "St." as "st", RTT's "Jn" as "junction": what's compared. */
 const fold = (s: string) =>
   s
     .toLowerCase()
     .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "")
+    .replace(/\p{M}/gu, "")
     .replace(/&/g, " and ")
     .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\bjn\b/g, "junction")
     .trim();
 
 /**

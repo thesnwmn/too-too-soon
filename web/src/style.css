@@ -134,6 +134,27 @@ footer button { margin-bottom: 8px; }
 form { display: grid; gap: 14px; margin: 16px 0; }
 label { display: grid; gap: 4px; font-weight: 600; }
 .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+/* A place search box (src/places.ts): the suggestions open under it, over what follows. */
+.place { position: relative; display: grid; gap: 4px; }
+.place > label { font-weight: 600; }
+.place .chosen { color: var(--muted); font-size: 0.85rem; min-height: 1.2em; }
+.suggest {
+  position: absolute;
+  top: calc(100% - 1.4em);
+  left: 0;
+  right: 0;
+  z-index: 5;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--card);
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.18);
+}
+.suggest button { width: 100%; text-align: left; background: transparent; color: var(--ink); padding: 10px 12px; min-height: 44px; border-radius: 8px; }
+.suggest button:hover, .suggest button:focus-visible { background: var(--bg); }
+.suggest small { color: var(--muted); font-size: 0.8rem; margin-left: 6px; }
 input {
   font: inherit;
   padding: 10px 12px;

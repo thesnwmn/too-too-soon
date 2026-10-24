@@ -18,6 +18,8 @@ const locations = [
   { description: "Woking Signal Wk506", longCode: "WOKI100" },
   { description: "Clapham Junction", shortCode: "CLJ", longCode: "CLPHMJN" },
   { description: "Clapham Yard", longCode: "CLPHMYD" },
+  { description: "Clapham Junction", longCode: "CLPHMJ1" },
+  { description: "Woking Jn", longCode: "WOKJN" },
   { description: "Penywaun Bus", shortCode: "XPZ", longCode: "ABDAPEN" },
   { description: "", longCode: "NONAME" },
 ];
@@ -33,6 +35,8 @@ describe("compactPlaces", () => {
     expect(codes).not.toContain("WOKING");
     expect(codes).not.toContain("ABDAPEN");
     expect(codes).not.toContain("NONAME");
+    // A platform timing point with the station's own name.
+    expect(codes).not.toContain("CLPHMJ1");
   });
   it("stays small enough to ship: about 12,000 places in under 500 KB", () => {
     const many = Array.from({ length: 12_000 }, (_, i) => ({ description: `Somewhere Signal Wk${i}`, longCode: `S${i}`.padEnd(7, "X") }));
@@ -44,10 +48,11 @@ describe("compactPlaces", () => {
 describe("searchPlaces", () => {
   const names = (q: string) => searchPlaces(places, q).map((p) => p.name);
   it("puts stations first, then junctions and the rest", () => {
-    expect(names("wok")).toEqual(["Woking", "Wokingham", "Woking Junction", "Woking Signal Wk506"]);
+    expect(names("wok")).toEqual(["Woking", "Wokingham", "Woking Jn", "Woking Junction", "Woking Signal Wk506"]);
   });
   it("finds a word inside the name, every word typed", () => {
-    expect(names("junction")).toEqual(["Clapham Junction", "Woking Junction"]);
+    expect(names("junction")).toEqual(["Clapham Junction", "Woking Jn", "Woking Junction"]);
+    expect(names("woking junc")).toEqual(["Woking Jn", "Woking Junction"]);
     expect(names("clap junc")).toEqual(["Clapham Junction"]);
     expect(names("brookwood end")).toEqual(["Brookwood London End", "Brookwood Country End"]);
   });

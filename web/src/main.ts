@@ -2,6 +2,7 @@
 // set-up form. It asks only the Worker (api/next); the demo runs on recorded data instead.
 import { withDemoClasses, demoLineUps, type ErrorResponse, type NextResponse, parseSpot, type Pass, predictPasses, type Spot, spotParams, upcoming } from "@too-too-soon/core";
 import { logo, wordmark } from "./brand.ts";
+import { placeField, resolvePlace, wirePlaceField } from "./places.ts";
 import { about, clock, countdown, direction, inMinutes, refreshAfter, stopping, sureness, what } from "./format.ts";
 
 const app = document.getElementById("app")!;
@@ -196,19 +197,13 @@ function setupView(): string {
   const v = (x: string | number | undefined) => (x === undefined ? "" : esc(String(x)));
   const val = (k: string, x: string | number | undefined) => v(d ? d[k] : x);
   return `<header><h1 class="brand">${logo}${wordmark()}</h1>${s ? `<button type="button" id="cancel" class="ghost">Cancel</button>` : ""}</header>
-    <p class="intro">How long till the next too too? Set up the spot you watch trains from: tap it on a map, or type the <b>timing points</b> either side (stations or junctions, by their TIPLOC or station codes).</p>
+    <p class="intro">How long till the next too too? Set up the spot you watch trains from: tap it on a map, or search for the stations or junctions either side.</p>
     <button type="button" id="pick" class="wide">Pick on a map</button>
     ${state.error ? `<p class="note">${esc(state.error)}</p>` : ""}
     <form id="setup">
       <label>Name <input name="name" value="${val("name", s?.name)}" placeholder="Our bridge" maxlength="60"></label>
-      <div class="pair">
-        <label>Timing point A <input name="a" value="${val("a", s?.a)}" placeholder="CLPHMJN" required pattern="[A-Za-z0-9]{3,7}" autocapitalize="characters"></label>
-        <label>Called <input name="an" value="${val("an", s?.aName)}" placeholder="London" maxlength="60"></label>
-      </div>
-      <div class="pair">
-        <label>Timing point B <input name="b" value="${val("b", s?.b)}" placeholder="WDON" required pattern="[A-Za-z0-9]{3,7}" autocapitalize="characters"></label>
-        <label>Called <input name="bn" value="${val("bn", s?.bName)}" placeholder="Wimbledon" maxlength="60"></label>
-      </div>
+      ${placeField("a", "Timing point A", { q: d?.aq, code: d ? d.a : s?.a, name: d ? d.an : s?.aName })}
+      ${placeField("b", "Timing point B", { q: d?.bq, code: d ? d.b : s?.b, name: d ? d.bn : s?.bName })}
       <button type="button" id="swap" class="ghost">Swap A and B</button>
       <label>How far from A to B is your spot? <output id="fout">${Math.round(Number(d?.f ?? s?.f ?? 0.5) * 100)}%</output>
         <input type="range" name="f" min="0" max="1" step="0.01" value="${val("f", s?.f ?? 0.5)}">
@@ -247,7 +242,11 @@ function render(): void {
   document.getElementById("swap")?.addEventListener("click", () => {
     const form = document.getElementById("setup") as HTMLFormElement;
     const field = (n: string) => form.elements.namedItem(n) as HTMLInputElement;
-    for (const [x, y] of [["a", "b"], ["an", "bn"]]) [field(x).value, field(y).value] = [field(y).value, field(x).value];
+    for (const [x, y] of [["a", "b"], ["an", "bn"], ["aq", "bq"]]) [field(x).value, field(y).value] = [field(y).value, field(x).value];
+    for (const [x, y] of [["a-chosen", "b-chosen"]]) {
+      const [ex, ey] = [document.getElementById(x)!, document.getElementById(y)!];
+      [ex.textContent, ey.textContent] = [ey.textContent, ex.textContent];
+    }
     const f = field("f");
     f.value = String(Math.round((1 - Number(f.value)) * 100) / 100);
     document.getElementById("fout")!.textContent = `${Math.round(Number(f.value) * 100)}%`;
@@ -263,12 +262,21 @@ function render(): void {
   if (form) {
     const f = form.elements.namedItem("f") as HTMLInputElement;
     f.addEventListener("input", () => (document.getElementById("fout")!.textContent = `${Math.round(Number(f.value) * 100)}%`));
+    wirePlaceField(form, "a");
+    wirePlaceField(form, "b");
     form.addEventListener("submit", (e) => {
       e.preventDefault();
       const fd = new FormData(form);
       const q = new URLSearchParams();
-      for (const [k, val] of fd) if (String(val).trim()) q.set(k, String(val));
-      const r = parseSpot(q);
+      for (const k of ["name", "f"]) if (String(fd.get(k) ?? "").trim()) q.set(k, String(fd.get(k)));
+      const missing: string[] = [];
+      for (const k of ["a", "b"] as const) {
+        const p = resolvePlace(fd, k);
+        if (p.code) q.set(k, p.code);
+        else missing.push(k.toUpperCase());
+        if (p.name) q.set(`${k}n`, p.name);
+      }
+      const r = missing.length ? { error: `Pick ${missing.join(" and ")} from the list as you type, or type ${missing.length > 1 ? "their codes" : "its code"}.` } : parseSpot(q);
       if ("error" in r) {
         state.error = r.error;
         state.draft = Object.fromEntries([...fd].map(([k, x]) => [k, String(x)]));
@@ -312,7 +320,7 @@ async function pick(): Promise<void> {
       state.picking = false;
       if (picked) {
         state.error = undefined;
-        state.draft = { ...state.draft, name: name || `Between ${picked.aName} and ${picked.bName}`, a: picked.a, b: picked.b, f: String(picked.f), an: picked.aName, bn: picked.bName };
+        state.draft = { ...state.draft, name: name || `Between ${picked.aName} and ${picked.bName}`, a: picked.a, b: picked.b, f: String(picked.f), an: picked.aName, bn: picked.bName, aq: picked.aName, bq: picked.bName };
       }
       render();
     });
