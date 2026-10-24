@@ -176,7 +176,8 @@ export function predictPasses(atA: RttLocationResponse, atB: RttLocationResponse
 export function trainClassOf(r: RttServiceResponse, allocationIndex = 0): string | undefined {
   const all = r.service?.allocationData ?? [];
   const at = all.find((x) => x.allocationIndex === allocationIndex) ?? all[0];
-  return at?.leadingClass?.trim() || undefined;
+  // "444", though "Class 444" would read the same.
+  return at?.leadingClass?.replace(/^\s*class\s*/i, "").trim() || undefined;
 }
 
 /** Passes from `graceMs` ago onwards: a train a minute late past the bridge may still be in sight. */

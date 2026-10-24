@@ -185,14 +185,30 @@ describe("/api/next, the class of train", () => {
     expect(body.passes.every((p) => p.trainClass === undefined)).toBe(true);
     expect(services(rtt.calls)).toHaveLength(0);
   });
-  it("still lists the trains when the lookup fails, and tries again next time", async () => {
-    const rtt = fakeRtt({ trains, refresh: true, swapEntitlements: ["allowAllocations"], serviceStatus: 500 });
-    const r = await handle(get(SPOT), env, rtt.deps);
-    expect(r.status).toBe(200);
-    expect(((await r.json()) as NextResponse).passes).toHaveLength(3);
-    rtt.tick(FRESH_MS + 1);
-    await handle(get(SPOT), env, rtt.deps);
-    expect(services(rtt.calls)).toHaveLength(4);
+  it("still lists the trains when the lookup fails, and doesn't ask again every refresh", async () => {
+    for (const status of [404, 500]) {
+      resetClasses();
+      const rtt = fakeRtt({ trains, refresh: true, swapEntitlements: ["allowAllocations"], serviceStatus: status });
+      const r = await handle(get(SPOT), env, rtt.deps);
+      expect(r.status).toBe(200);
+      expect(((await r.json()) as NextResponse).passes).toHaveLength(3);
+      for (let i = 0; i < 5; i++) await handle(get(SPOT), env, rtt.deps);
+      expect(services(rtt.calls)).toHaveLength(2);
+    }
+  });
+  it("shares a lookup between phones asking at once", async () => {
+    const rtt = fakeRtt({ trains, refresh: true, swapEntitlements: ["allowAllocations"] });
+    await Promise.all([1, 2, 3].map(() => handle(get(SPOT), env, rtt.deps)));
+    expect(services(rtt.calls)).toHaveLength(2);
+  });
+  it("doesn't look up classes while RTT is turning the line-ups down", async () => {
+    const rtt = fakeRtt({ trains, refresh: true, swapEntitlements: ["allowAllocations"] });
+    rtt.fail(429);
+    rtt.deps.store.put("lineup:ASHBYJN", JSON.stringify({ at: NOW - FRESH_MS - 1, data: lineUps(trains, NOW).a }), 60);
+    rtt.deps.store.put("lineup:BRAMFD", JSON.stringify({ at: NOW - FRESH_MS - 1, data: lineUps(trains, NOW).b }), 60);
+    const body = (await (await handle(get(SPOT), env, rtt.deps)).json()) as NextResponse;
+    expect(body.stale).toBe(true);
+    expect(services(rtt.calls)).toHaveLength(0);
   });
   it("stops asking for a while after RTT says we've asked too often", async () => {
     const rtt = fakeRtt({ trains, refresh: true, swapEntitlements: ["allowAllocations"], serviceStatus: 429 });

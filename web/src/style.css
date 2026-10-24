@@ -113,6 +113,7 @@ button:disabled { opacity: 0.6; }
   padding: 12px 4px;
   list-style: none;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 .train summary::-webkit-details-marker { display: none; }
 .train .chevron { width: 0.6rem; height: 0.6rem; border: solid var(--muted); border-width: 0 2px 2px 0; transform: rotate(45deg); justify-self: center; transition: transform 0.15s; }

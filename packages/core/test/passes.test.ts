@@ -196,6 +196,7 @@ describe("trainClassOf", () => {
     expect(trainClassOf(r)).toBe("159");
     expect(trainClassOf({ service: { allocationData: [] } })).toBeUndefined();
     expect(trainClassOf({})).toBeUndefined();
+    expect(trainClassOf({ service: { allocationData: [{ leadingClass: "Class 158" }] } })).toBe("158");
   });
   it("carries the allocation index from the line-up, and the demo's classes", () => {
     const ups = lineUps([{ id: "Z1", headcode: "1Z01", at: 5, direction: "ab", run: 4, origin: "X", destination: "Y", trainClass: "444" }], NOW);

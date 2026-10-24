@@ -34,14 +34,14 @@ export function direction(p: Pass, spot: Spot, names: { a?: string; b?: string }
  * What it is: "10 coaches to London Waterloo" for a passenger train. Anything else by its
  * headcode's first digit, which says what kind of train it is: 0 an engine on its own, 3 a
  * special (in autumn, often a train cleaning leaves off the rails), 4 and 6 to 8 freight, and
- * otherwise empty coaches (5, or a passenger headcode running empty).
+ * otherwise empty coaches (5, or a passenger headcode running empty). With no headcode, freight.
  */
 export function what(p: Pass): string {
   if (!p.passenger) {
     const c = (p.headcode ?? "")[0];
     if (c === "0") return "Engine on its own";
     if (c === "3") return "Special train";
-    if (c === "4" || c === "6" || c === "7" || c === "8") return "Freight train";
+    if (c === "4" || c === "6" || c === "7" || c === "8" || !c) return "Freight train";
     return "Empty train";
   }
   const coaches = p.coaches ? `${p.coaches} coaches` : "Passenger train";

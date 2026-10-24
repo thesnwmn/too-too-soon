@@ -18,6 +18,8 @@ export interface Store {
 
 export interface HandlerDeps extends Deps {
   store: Store;
+  /** Lets work finish after the answer's sent (the Worker's ctx.waitUntil). */
+  waitUntil?: (p: Promise<unknown>) => void;
 }
 
 /** A line-up is fresh for a minute: several phones at one bridge share one lookup. */
@@ -72,20 +74,52 @@ export const CLASS_AHEAD = 6;
 /** A train's class is kept for six hours once known (it rarely changes), an hour when RTT doesn't say. */
 export const CLASS_KEEP_S = 6 * 3600;
 export const NO_CLASS_KEEP_S = 3600;
+/** A lookup that failed (not a 429) isn't tried again for ten minutes. */
+export const FAILED_CLASS_KEEP_S = 600;
 /** The list waits at most this long for classes; any not back by then come on a later refresh. */
 export const CLASS_WAIT_MS = 1500;
-/** After RTT says we've asked too often, no class lookups for this long (or its Retry-After). */
+/** After RTT says we've asked too often, no class lookups for at least this long (longer if its Retry-After says). */
 export const CLASS_PAUSE_MS = 10 * 60_000;
 
 /** Class lookups are paused until then: they're extras, and mustn't spend what the line-ups need. */
 let classesPausedUntil = 0;
-export const resetClasses = () => (classesPausedUntil = 0);
+/** Class lookups under way, so phones asking together share one per train. */
+const classInFlight = new Map<string, Promise<string | undefined>>();
+export const resetClasses = () => {
+  classesPausedUntil = 0;
+  classInFlight.clear();
+};
+
+/** One train's class: from the cache, or one lookup shared by everyone asking; undefined when unknown for now. */
+async function classOf(p: Pass, secret: string, deps: HandlerDeps): Promise<string | undefined> {
+  const key = `class:${p.id}:${p.allocationIndex ?? 0}`;
+  const cached = await deps.store.get(key).catch(() => undefined);
+  if (cached !== undefined) return cached || undefined;
+  if (deps.now() < classesPausedUntil) return undefined;
+  let pending = classInFlight.get(key);
+  if (!pending) {
+    pending = (async () => {
+      try {
+        const cls = trainClassOf(await service(p.id, secret, deps), p.allocationIndex) ?? "";
+        await deps.store.put(key, cls, cls ? CLASS_KEEP_S : NO_CLASS_KEEP_S).catch(() => undefined);
+        return cls || undefined;
+      } catch (e) {
+        if (e instanceof RttError && e.status === 429) classesPausedUntil = deps.now() + Math.max(CLASS_PAUSE_MS, (e.retryAfter ?? 0) * 1000);
+        // Anything else (a 404, a 5xx, the network): remembered as unknown for a while, not asked again every refresh.
+        else await deps.store.put(key, "", FAILED_CLASS_KEEP_S).catch(() => undefined);
+        return undefined;
+      }
+    })().finally(() => classInFlight.delete(key));
+    classInFlight.set(key, pending);
+  }
+  return pending;
+}
 
 /**
  * The class of train ("444") for the next few passenger trains, from RTT's allocations: only
  * with an entitlement for them, each train asked about once (then cached), never holding the
- * list up for more than CLASS_WAIT_MS, and not at all for a while after a 429. A lookup that
- * fails is left for a later refresh; one that answers with no allocation is remembered for an hour.
+ * list up for more than CLASS_WAIT_MS (lookups still going carry on, via waitUntil, and are
+ * cached for the next refresh), and not at all for a while after a 429.
  */
 async function withClasses(passes: Pass[], secret: string, deps: HandlerDeps): Promise<Pass[]> {
   const found = new Map<string, string>();
@@ -93,22 +127,13 @@ async function withClasses(passes: Pass[], secret: string, deps: HandlerDeps): P
     .filter((p) => p.passenger)
     .slice(0, CLASS_AHEAD)
     .map(async (p) => {
-      const key = `class:${p.id}:${p.allocationIndex ?? 0}`;
-      let cls = await deps.store.get(key).catch(() => undefined);
-      if (cls === undefined) {
-        if (deps.now() < classesPausedUntil) return;
-        const r = await service(p.id, secret, deps).catch((e: unknown) => {
-          if (e instanceof RttError && e.status === 429) classesPausedUntil = deps.now() + (e.retryAfter ? e.retryAfter * 1000 : CLASS_PAUSE_MS);
-          return undefined;
-        });
-        if (!r) return;
-        cls = trainClassOf(r, p.allocationIndex) ?? "";
-        await deps.store.put(key, cls, cls ? CLASS_KEEP_S : NO_CLASS_KEEP_S).catch(() => undefined);
-      }
+      const cls = await classOf(p, secret, deps);
       if (cls) found.set(p.id, cls);
     });
+  const all = Promise.all(lookups);
+  deps.waitUntil?.(all);
   let timer: ReturnType<typeof setTimeout> | undefined;
-  await Promise.race([Promise.all(lookups), new Promise((done) => (timer = setTimeout(done, CLASS_WAIT_MS)))]);
+  await Promise.race([all, new Promise((done) => (timer = setTimeout(done, CLASS_WAIT_MS)))]);
   if (timer !== undefined) clearTimeout(timer);
   return passes.map((p) => (found.has(p.id) ? { ...p, trainClass: found.get(p.id) } : p));
 }
@@ -135,7 +160,8 @@ async function next(url: URL, env: Env, deps: HandlerDeps): Promise<Response> {
     // and an allocations entitlement says what each train is.
     const ents = await accessToken(env.RTT_TOKEN, deps).then((t) => t.entitlements).catch(() => undefined);
     let passes = upcoming(predictPasses(atA.data, atB.data, f), deps.now());
-    if (ents?.some((e) => e.startsWith("allowAllocations"))) passes = await withClasses(passes, env.RTT_TOKEN, deps);
+    // Not while RTT is turning the line-ups down: the classes can wait.
+    if (!atA.stale && !atB.stale && ents?.some((e) => e.startsWith("allowAllocations"))) passes = await withClasses(passes, env.RTT_TOKEN, deps);
     const body: NextResponse = {
       generatedAt: Math.min(atA.at, atB.at),
       passes,

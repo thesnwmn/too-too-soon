@@ -221,7 +221,10 @@ function setupView(): string {
 function render(): void {
   if (state.picking) return;
   const now = Date.now();
+  // The redraw replaces the page: keep a keyboard or screen reader on the train it was on.
+  const focused = (document.activeElement as HTMLElement | null)?.closest<HTMLElement>("details[data-id]")?.dataset.id;
   app.innerHTML = state.spot && !state.editing ? watchView(state.spot, now) : setupView();
+  if (focused) app.querySelector<HTMLElement>(`details[data-id="${CSS.escape(focused)}"] summary`)?.focus();
   // Forget opened trains that have gone by.
   const listed = new Set(state.data?.passes.map((p) => p.id));
   for (const id of openRows) if (!listed.has(id)) openRows.delete(id);
