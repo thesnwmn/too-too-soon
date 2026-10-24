@@ -28,7 +28,7 @@ export function placeField(k: "a" | "b", labelHtml: string, values: { q?: string
       <input type="hidden" name="${k}" value="${esc(values.code ?? "")}">
       <input type="hidden" name="${k}n" value="${esc(values.name ?? "")}">
       <small class="chosen" id="${k}-chosen">${values.code ? `${esc(values.code)}` : ""}</small>
-      <ul class="suggest" id="${k}-list" role="listbox" aria-label="Places" hidden></ul>
+      <ul class="suggest" id="${k}-list" role="listbox" aria-label="Places for ${k.toUpperCase()}" hidden></ul>
       <span class="sr-only" id="${k}-count" aria-live="polite"></span>
     </div>`;
 }

@@ -31,6 +31,9 @@ export interface Pass {
   trainClass?: string;
   /** Minutes late leaving the first point, when there's live data. */
   late?: number;
+  /** At a one-point spot: it starts or ends its journey here. */
+  startsHere?: boolean;
+  endsHere?: boolean;
   /** Whether it stops at the point it leaves before the spot, and the one after. */
   stopsBefore: boolean;
   stopsAfter: boolean;
@@ -174,21 +177,25 @@ export function predictPasses(atA: RttLocationResponse, atB: RttLocationResponse
 
 /**
  * The trains at a single timing point (a one-point spot), soonest first: each when it's there,
- * as it leaves (or passes, or arrives where it ends), heading for its destination.
+ * as it leaves (or passes, or arrives where it ends), heading for its destination, or marked as
+ * ending its journey here.
  */
 export function predictAt(at: RttLocationResponse): Pass[] {
-  const passes: Pass[] = [];
-  const seen = new Set<string>();
+  // One entry per service: one listed twice here (it reverses) keeps its last, the way out.
+  const byId = new Map<string, RttService>();
   for (const s of at.services ?? []) {
     const id = s.scheduleMetadata?.uniqueIdentity;
-    if (!id || gone(s) || seen.has(id)) continue;
+    if (id && !gone(s)) byId.set(id, s);
+  }
+  const passes: Pass[] = [];
+  for (const [id, s] of byId) {
     const when = leaving(s) ?? reaching(s);
     if (!when) continue;
-    seen.add(id);
     const meta = s.scheduleMetadata ?? {};
     const lateMs = when.basis !== "timetable" && when.scheduled !== undefined ? when.time - when.scheduled : undefined;
     const coaches = s.locationMetadata?.numberOfVehicles;
     const here = stops(s);
+    const display = s.temporalData?.displayAs;
     passes.push({
       id,
       time: when.time,
@@ -202,6 +209,8 @@ export function predictAt(at: RttLocationResponse): Pass[] {
       coaches: coaches && coaches > 0 ? coaches : undefined,
       allocationIndex: s.locationMetadata?.allocationIndex,
       late: lateMs === undefined ? undefined : Math.round(lateMs / 60_000),
+      ...(display === "STARTS" && { startsHere: true }),
+      ...(display === "TERMINATES" && { endsHere: true }),
       stopsBefore: here,
       stopsAfter: here,
       timeA: when.time,

@@ -142,6 +142,7 @@ label { display: grid; gap: 4px; font-weight: 600; }
 .mode input { accent-color: var(--accent); width: 20px; height: 20px; min-height: 0; margin: 0; }
 form[data-mode="one"] .two-only, form[data-mode="two"] .one-only { display: none; }
 form .two-only:not(span) { display: grid; gap: 14px; }
+/* Needed: the rule above outranks the plain hide for the B block. */
 form[data-mode="one"] div.two-only { display: none; }
 /* A place search box (src/places.ts): the suggestions open under it, over what follows. */
 .place { position: relative; display: grid; gap: 4px; }

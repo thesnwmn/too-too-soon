@@ -3,7 +3,7 @@
 import { withDemoClasses, demoLineUps, type ErrorResponse, type NextResponse, parseSpot, type Pass, predictAt, predictPasses, type Spot, spotParams, upcoming } from "@too-too-soon/core";
 import { logo, wordmark } from "./brand.ts";
 import { loadPlaces, placeField, resolvePlace, wirePlaceField } from "./places.ts";
-import { about, clock, countdown, direction, inMinutes, refreshAfter, stopping, sureness, what } from "./format.ts";
+import { about, clock, towardsText, countdown, direction, inMinutes, refreshAfter, stopping, sureness, what } from "./format.ts";
 
 const app = document.getElementById("app")!;
 const params = new URLSearchParams(location.search);
@@ -145,10 +145,10 @@ const openRows = new Set<string>();
 /** One train in the list: compact, and a tap opens who runs it, what it is, where from. */
 function trainLine(p: Pass, spot: Spot, now: number): string {
   const d = direction(p, spot, names());
-  const more = [about(p), [`towards ${d.towards}`, sureness(p), p.headcode].filter(Boolean).join(" · ")].filter(Boolean);
+  const more = [about(p), [towardsText(d), sureness(p), p.headcode].filter(Boolean).join(" · ")].filter(Boolean);
   return `<li class="train ${p.passenger ? "" : "freight"}"><details data-id="${esc(p.id)}"${openRows.has(p.id) ? " open" : ""}>
     <summary>
-      <span class="arrow" role="img" aria-label="towards ${esc(d.towards)}">${d.arrow}</span>
+      <span class="arrow" role="img" aria-label="${esc(towardsText(d))}">${d.arrow}</span>
       <span class="when"><b>${clock(p.time)}</b> <small>${inMinutes(p.time, now)}</small></span>
       <span class="what">${esc(what(p))}<small>${esc(stopping(p, spot, names()))}</small></span>
       <span class="chevron" aria-hidden="true"></span>
@@ -170,7 +170,7 @@ function watchView(spot: Spot, now: number): string {
     hero = `<section class="next ${next.passenger ? "" : "freight"}" aria-label="Next train">
       <p class="label">Next too too</p>
       <p class="count" data-time="${next.time}">${countdown(next.time, now)}</p>
-      <p class="dir"><span aria-hidden="true">${d.arrow}</span> towards ${esc(d.towards)}</p>
+      <p class="dir"><span aria-hidden="true">${d.arrow}</span> ${esc(towardsText(d))}</p>
       <p class="detail">${esc(what(next))}</p>
       ${about(next) ? `<p class="detail small">${esc(about(next))}</p>` : ""}
       <p class="detail small">${clock(next.time)} · ${esc(stopping(next, spot, names()))} · ${esc(sureness(next))}${next.headcode ? ` · ${esc(next.headcode)}` : ""}</p>
@@ -193,7 +193,7 @@ function watchView(spot: Spot, now: number): string {
     ${notes.map((n) => `<p class="note">${n}</p>`).join("")}
     <footer>
       <button type="button" id="refresh" class="ghost" ${state.loading ? "disabled" : ""}>${state.loading ? "Asking…" : "Refresh"}</button>
-      <p>${spot.b ? `Times are estimates between ${esc(spot.aName ?? spot.a)} and ${esc(spot.bName ?? spot.b)}: allow a couple of minutes either way.` : `Times are when each train leaves (or passes) ${esc(spot.aName ?? data?.aName ?? spot.a)}.`} Data from <a href="https://www.realtimetrains.co.uk/">Realtime Trains</a> and Network Rail.</p>
+      <p>${spot.b ? `Times are estimates between ${esc(spot.aName ?? spot.a)} and ${esc(spot.bName ?? spot.b)}: allow a couple of minutes either way.` : `Times are when each train leaves or passes ${esc(spot.aName ?? data?.aName ?? spot.a)} (or arrives, where it ends there).`} Data from <a href="https://www.realtimetrains.co.uk/">Realtime Trains</a> and Network Rail.</p>
     </footer>`;
 }
 
