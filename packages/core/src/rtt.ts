@@ -33,6 +33,8 @@ export interface RttService {
   };
   locationMetadata?: {
     numberOfVehicles?: number;
+    /** Which of the service's allocations (rolling stock) it has on leaving here: see RttServiceResponse. */
+    allocationIndex?: number;
     line?: { planned?: string; actual?: string };
     platform?: { planned?: string; actual?: string };
   };
@@ -53,4 +55,18 @@ export interface RttLocationResponse {
   systemStatus?: { realtimeNetworkRail?: string; rttCore?: string };
   query?: { location?: { description?: string; longCodes?: string[]; shortCodes?: string[] }; timeFrom?: string; timeTo?: string };
   services?: RttService[];
+}
+
+/** One rolling-stock allocation of a service: from GET /gb-nr/service, with an allocations entitlement. */
+export interface RttAllocation {
+  /** Matches a location's allocationIndex: the stock it has on leaving there. */
+  allocationIndex?: number;
+  /** The class of the leading powered vehicle, like "444". */
+  leadingClass?: string;
+  passengerVehicles?: number;
+}
+
+/** The parts of GET /gb-nr/service that we read. */
+export interface RttServiceResponse {
+  service?: { allocationData?: RttAllocation[] };
 }

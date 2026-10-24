@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Pass } from "@too-too-soon/core";
-import { clock, countdown, direction, inMinutes, refreshAfter, sureness, what } from "../src/format.ts";
+import { about, clock, countdown, direction, inMinutes, refreshAfter, stopping, sureness, what } from "../src/format.ts";
 
 const NOW = Date.parse("2026-10-24T14:00:00Z");
 const pass = (over: Partial<Pass>): Pass => ({ id: "x", time: NOW, basis: "forecast", direction: "ab", passenger: true, stopsBefore: false, stopsAfter: false, timeA: NOW, timeB: NOW, ...over });
@@ -26,6 +26,25 @@ describe("the words", () => {
     expect(what(pass({ coaches: 10, destination: "London Waterloo" }))).toBe("10 coaches to London Waterloo");
     expect(what(pass({ passenger: false, headcode: "6M41" }))).toBe("Freight train");
     expect(what(pass({ passenger: false, headcode: "5Z90" }))).toBe("Empty train");
+    expect(what(pass({ passenger: false, headcode: "3S84" }))).toBe("Special train");
+    expect(what(pass({ passenger: false, headcode: "0Y42" }))).toBe("Engine on its own");
+    expect(what(pass({ passenger: false }))).toBe("Freight train");
+    expect(what(pass({ passenger: false, headcode: "9T12" }))).toBe("Empty train");
+  });
+  it("says who runs it, what it is and where from", () => {
+    expect(about(pass({ operator: "South Western Railway", trainClass: "159", origin: "London Waterloo", destination: "Yeovil Junction" }))).toBe("South Western Railway · Class 159 · from London Waterloo");
+    expect(about(pass({ passenger: false, operator: "Freightliner", origin: "Southampton Docks", destination: "Birmingham" }))).toBe("Freightliner · Southampton Docks to Birmingham");
+    // As RTT sent 3S84: no operator's name, out from the sidings and back.
+    expect(about(pass({ passenger: false, origin: "Effingham Jn. C.H.S.", destination: "Effingham Jn. C.H.S." }))).toBe("from Effingham Jn. C.H.S. and back");
+    expect(about(pass({}))).toBe("");
+  });
+  it("names the station it stops at, whichever way it's going", () => {
+    const spot = { name: "B", a: "BKO", b: "WOK", f: 0.5, aName: "Brookwood", bName: "Woking" };
+    expect(stopping(pass({ direction: "ab", stopsAfter: true }), spot)).toBe("stopping at Woking");
+    expect(stopping(pass({ direction: "ba", stopsAfter: true }), spot)).toBe("stopping at Brookwood");
+    expect(stopping(pass({ direction: "ba", stopsBefore: true }), spot)).toBe("just left Woking");
+    expect(stopping(pass({ direction: "ab", stopsBefore: true, stopsAfter: true }), spot)).toBe("stops at Brookwood and Woking");
+    expect(stopping(pass({}), spot)).toBe("fast: not stopping");
   });
   it("says how sure", () => {
     expect(sureness(pass({ late: 6 }))).toBe("6 min late");

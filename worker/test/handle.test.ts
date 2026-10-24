@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { type DemoTrain, type InfoResponse, lineUps, type NextResponse } from "@too-too-soon/core";
-import { FRESH_MS, handle, resetInfo, type Store } from "../src/handle.ts";
+import { CLASS_PAUSE_MS, FRESH_MS, handle, resetClasses, resetInfo, type Store } from "../src/handle.ts";
 import { resetRtt } from "../src/rtt.ts";
 
 const NOW = Date.parse("2026-10-24T14:00:00Z");
 const train = (over: Partial<DemoTrain>): DemoTrain => ({ id: "X1", headcode: "1X01", at: 10, direction: "ab", run: 4, origin: "Here", destination: "There", ...over });
 
 /** A fake RTT: answers the line-ups for `trains`, or `status` for every location call. */
-function fakeRtt(opts: { trains?: DemoTrain[]; status?: number; refresh?: boolean; swapStatus?: number; entitlements?: unknown; noWindow?: boolean; down?: boolean } = {}) {
+function fakeRtt(opts: { trains?: DemoTrain[]; status?: number; refresh?: boolean; swapStatus?: number; entitlements?: unknown; swapEntitlements?: string[]; serviceStatus?: number; retryAfter?: number; noWindow?: boolean; down?: boolean } = {}) {
   const calls: { url: string; auth: string | null }[] = [];
   let clock = NOW;
   const fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
@@ -17,7 +17,7 @@ function fakeRtt(opts: { trains?: DemoTrain[]; status?: number; refresh?: boolea
     if (opts.down) throw new TypeError("network down");
     if (url.pathname === "/api/get_access_token") {
       if (opts.swapStatus) return new Response(null, { status: opts.swapStatus });
-      return opts.refresh ? Response.json({ token: "short-life", validUntil: new Date(clock + 3600_000).toISOString(), entitlements: ["allowDetailed"] }) : new Response("no", { status: 403 });
+      return opts.refresh ? Response.json({ token: "short-life", validUntil: new Date(clock + 3600_000).toISOString(), entitlements: opts.swapEntitlements ?? ["allowDetailed"] }) : new Response("no", { status: 403 });
     }
     if (url.pathname === "/api/info") return Response.json({ api_version: "2026-10-01", credentials: { entitlements: opts.entitlements ?? ["allowDetailed"] } });
     if (url.pathname === "/gb-nr/location") {
@@ -25,6 +25,11 @@ function fakeRtt(opts: { trains?: DemoTrain[]; status?: number; refresh?: boolea
       if (opts.status) return new Response(null, { status: opts.status, headers: opts.status === 429 ? { "Retry-After": "30" } : {} });
       const ups = lineUps(opts.trains ?? [train({})], clock);
       return Response.json(url.searchParams.get("code") === "ASHBYJN" ? ups.a : ups.b);
+    }
+    if (url.pathname === "/gb-nr/service") {
+      if (opts.serviceStatus) return new Response(null, { status: opts.serviceStatus, headers: opts.serviceStatus === 429 && opts.retryAfter ? { "Retry-After": String(opts.retryAfter) } : {} });
+      const t = (opts.trains ?? [train({})]).find((x) => url.searchParams.get("uniqueIdentity")?.startsWith(`${x.id}:`));
+      return Response.json({ service: { allocationData: t?.trainClass ? [{ allocationIndex: 0, leadingClass: t.trainClass, passengerVehicles: t.coaches }] : [] } });
     }
     return new Response("", { status: 404 });
   };
@@ -45,6 +50,7 @@ const SPOT = "/api/next?a=ASHBYJN&b=BRAMFD&f=0.25";
 beforeEach(() => {
   resetRtt();
   resetInfo();
+  resetClasses();
 });
 
 describe("/api/next", () => {
@@ -156,6 +162,64 @@ describe("/api/next", () => {
   it("says it isn't set up without a token", async () => {
     const r = await handle(get(SPOT), {}, fakeRtt().deps);
     expect(r.status).toBe(503);
+  });
+});
+
+describe("/api/next, the class of train", () => {
+  const trains = [train({ id: "P1", trainClass: "444", coaches: 10 }), train({ id: "P2", at: 20, trainClass: "159" }), train({ id: "F1", at: 30, passenger: false, headcode: "6M41" })];
+  const services = (calls: { url: string }[]) => calls.filter((c) => c.url.includes("/gb-nr/service"));
+
+  it("says it for passenger trains, with an allocations entitlement, asking once per train", async () => {
+    const rtt = fakeRtt({ trains, refresh: true, swapEntitlements: ["allowDetailed", "allowAllocationsPassenger"] });
+    const body = (await (await handle(get(SPOT), env, rtt.deps)).json()) as NextResponse;
+    expect(body.passes.map((p) => [p.id.split(":")[1], p.trainClass])).toEqual([["P1", "444"], ["P2", "159"], ["F1", undefined]]);
+    // The service is asked for without its namespace.
+    expect(services(rtt.calls).map((c) => new URL(c.url).searchParams.get("uniqueIdentity"))).toEqual(["P1:2026-10-24", "P2:2026-10-24"]);
+    rtt.tick(FRESH_MS + 1);
+    await handle(get(SPOT), env, rtt.deps);
+    expect(services(rtt.calls)).toHaveLength(2);
+  });
+  it("doesn't ask without the entitlement", async () => {
+    const rtt = fakeRtt({ trains, refresh: true });
+    const body = (await (await handle(get(SPOT), env, rtt.deps)).json()) as NextResponse;
+    expect(body.passes.every((p) => p.trainClass === undefined)).toBe(true);
+    expect(services(rtt.calls)).toHaveLength(0);
+  });
+  it("still lists the trains when the lookup fails, and doesn't ask again every refresh", async () => {
+    for (const status of [404, 500]) {
+      resetClasses();
+      const rtt = fakeRtt({ trains, refresh: true, swapEntitlements: ["allowAllocations"], serviceStatus: status });
+      const r = await handle(get(SPOT), env, rtt.deps);
+      expect(r.status).toBe(200);
+      expect(((await r.json()) as NextResponse).passes).toHaveLength(3);
+      for (let i = 0; i < 5; i++) await handle(get(SPOT), env, rtt.deps);
+      expect(services(rtt.calls)).toHaveLength(2);
+    }
+  });
+  it("shares a lookup between phones asking at once", async () => {
+    const rtt = fakeRtt({ trains, refresh: true, swapEntitlements: ["allowAllocations"] });
+    await Promise.all([1, 2, 3].map(() => handle(get(SPOT), env, rtt.deps)));
+    expect(services(rtt.calls)).toHaveLength(2);
+  });
+  it("doesn't look up classes while RTT is turning the line-ups down", async () => {
+    const rtt = fakeRtt({ trains, refresh: true, swapEntitlements: ["allowAllocations"] });
+    rtt.fail(429);
+    rtt.deps.store.put("lineup:ASHBYJN", JSON.stringify({ at: NOW - FRESH_MS - 1, data: lineUps(trains, NOW).a }), 60);
+    rtt.deps.store.put("lineup:BRAMFD", JSON.stringify({ at: NOW - FRESH_MS - 1, data: lineUps(trains, NOW).b }), 60);
+    const body = (await (await handle(get(SPOT), env, rtt.deps)).json()) as NextResponse;
+    expect(body.stale).toBe(true);
+    expect(services(rtt.calls)).toHaveLength(0);
+  });
+  it("stops asking for a while after RTT says we've asked too often", async () => {
+    const rtt = fakeRtt({ trains, refresh: true, swapEntitlements: ["allowAllocations"], serviceStatus: 429 });
+    await handle(get(SPOT), env, rtt.deps);
+    const asked = services(rtt.calls).length;
+    rtt.tick(FRESH_MS + 1);
+    await handle(get(SPOT), env, rtt.deps);
+    expect(services(rtt.calls)).toHaveLength(asked);
+    rtt.tick(CLASS_PAUSE_MS);
+    await handle(get(SPOT), env, rtt.deps);
+    expect(services(rtt.calls).length).toBeGreaterThan(asked);
   });
 });
 

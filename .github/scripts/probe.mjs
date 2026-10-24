@@ -100,9 +100,9 @@ const lines = [`## Probe of ${site}`, "", ...spotLines, ...(process.env.SPOT_LIN
 const passes = next.body?.passes;
 if (Array.isArray(passes)) {
   lines.push(`${passes.length} trains between ${next.body.aName ?? q.get("a")} and ${next.body.bName ?? q.get("b")}${next.body.stale ? " (stale)" : ""}${next.body.limited ? " (live data limited)" : ""}:`, "");
-  lines.push("| time | dir | headcode | what | basis | late | stops |", "|---|---|---|---|---|---|---|");
+  lines.push("| time | dir | headcode | what | class | operator | from | basis | late | stops |", "|---|---|---|---|---|---|---|---|---|---|");
   for (const p of passes.slice(0, 25))
-    lines.push(`| ${clock(p.time)} | ${p.direction} | ${p.headcode ?? ""} | ${p.passenger ? `${p.coaches ?? "?"} coaches to ${p.destination ?? "?"}` : "freight/ECS"} | ${p.basis} | ${p.late ?? ""} | ${[p.stopsBefore && "before", p.stopsAfter && "after"].filter(Boolean).join(", ") || "non-stop"} |`);
+    lines.push(`| ${clock(p.time)} | ${p.direction} | ${p.headcode ?? ""} | ${p.passenger ? `${p.coaches ?? "?"} coaches to ${p.destination ?? "?"}` : "freight/ECS"} | ${p.trainClass ?? ""} | ${p.operator ?? ""} | ${p.origin ?? ""} | ${p.basis} | ${p.late ?? ""} | ${[p.stopsBefore && "before", p.stopsAfter && "after"].filter(Boolean).join(", ") || "non-stop"} |`);
 } else lines.push("```json", JSON.stringify(next.body, null, 2), "```");
 const out = lines.join("\n");
 console.log(out);

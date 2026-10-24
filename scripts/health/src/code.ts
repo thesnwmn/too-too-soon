@@ -29,12 +29,29 @@ export const noToken: Check = {
   id: "code/no-token-in-page",
   tier: 4,
   repro: `grep -rnE "data\\.rtt\\.io|RTT_TOKEN|Authorization|Bearer" ${BROWSER.join(" ")}`,
-  hint: "RTT's terms say the token never reaches a browser (tokens found in pages get revoked). The page asks the Worker (/api/…); only worker/ talks to data.rtt.io. See docs/architecture.md.",
+  hint: "RTT's terms say the token never reaches a browser (tokens found in pages get revoked). The page asks the Worker (/api/…); only worker/ (and a sample script run by hand from GitHub) talks to data.rtt.io. See docs/architecture.md.",
   run({ root }) {
     const files = BROWSER.flatMap((d) => sourceFiles(root, d, [".ts", ".js", ".html"]));
     // Comments count too: stripping them would also strip the "//" out of a URL.
     const hits = files.flatMap((f) => readFileSync(join(root, f), "utf8").split("\n").flatMap((line, i) => (SECRETS.test(line) ? [`${f}:${i + 1}: ${line.trim()}`] : [])));
     return hits.length ? fail(`${hits.length} mention${hits.length === 1 ? "" : "s"}`, hits.join("\n")) : pass(`${files.length} files`);
+  },
+};
+
+/** The code that may talk to RTT itself: the Worker, and a sample script run by hand from GitHub. */
+export const RTT_CLIENTS = ["worker/src/rtt.ts", ".github/scripts/rtt-sample.mjs"];
+/** Where else code lives that might be tempted. */
+const RTT_SCAN = ["web", "packages", "worker/src", ".github"];
+
+export const rttHost: Check = {
+  id: "code/rtt-clients",
+  tier: 4,
+  repro: `grep -rln "data\\.rtt\\.io" ${RTT_SCAN.join(" ")}`,
+  hint: `Only ${RTT_CLIENTS.join(" and ")} talk to data.rtt.io: everything else asks the Worker. A new RTT client needs the token, so it's a decision: add it to RTT_CLIENTS in scripts/health/src/code.ts and say why in docs/architecture.md#the-token-rule.`,
+  run({ root }) {
+    const files = RTT_SCAN.flatMap((d) => sourceFiles(root, d, [".ts", ".mjs", ".js", ".html", ".yml"]));
+    const hits = files.filter((f) => !RTT_CLIENTS.includes(f) && /\bdata\.rtt\.io\b/.test(readFileSync(join(root, f), "utf8")));
+    return hits.length ? fail(`${hits.length} other file${hits.length === 1 ? "" : "s"}`, hits.join("\n")) : pass(`${files.length} files`);
   },
 };
 
@@ -125,4 +142,4 @@ export const icons: Check = {
 };
 
 // Cheap scans first, so a broken convention shows before the slow runs.
-export const CODE = [noToken, noDom, wrangler, mapLazy, icons, typecheck, test, build];
+export const CODE = [noToken, rttHost, noDom, wrangler, mapLazy, icons, typecheck, test, build];

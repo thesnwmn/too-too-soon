@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { best, rttTime, type RttLocationResponse, type RttService, type RttTimes, DEMO_TRAINS, type DemoTrain, liveDataLimited, lineUps, parseSpot, predictPasses, spotParams, upcoming } from "../src/index.ts";
+import { best, rttTime, type RttLocationResponse, type RttService, type RttTimes, DEMO_TRAINS, type DemoTrain, liveDataLimited, lineUps, parseSpot, predictPasses, spotParams, trainClassOf, upcoming, withDemoClasses } from "../src/index.ts";
 
 const NOW = Date.parse("2026-10-24T14:00:00Z");
 const MIN = 60_000;
@@ -181,5 +181,28 @@ describe("spots", () => {
     expect(parseSpot(new URLSearchParams("a=WDON&b=WDON"))).toHaveProperty("error");
     expect(parseSpot(new URLSearchParams("a=CLPHMJN&b=WDON&f=1.5"))).toHaveProperty("error");
     expect(parseSpot(new URLSearchParams("a=CLPHMJN&b=WD%2FON"))).toHaveProperty("error");
+  });
+});
+
+describe("trainClassOf", () => {
+  // As RTT sent it for 1L69, two Class 159s from Waterloo, one left behind at Salisbury.
+  const r = { service: { allocationData: [{ allocationIndex: 0, leadingClass: "159", passengerVehicles: 6 }, { allocationIndex: 1, leadingClass: "158", passengerVehicles: 3 }] } };
+  it("takes the allocation the train has past the spot", () => {
+    expect(trainClassOf(r, 0)).toBe("159");
+    expect(trainClassOf(r, 1)).toBe("158");
+  });
+  it("falls back to the first allocation, and to nothing", () => {
+    expect(trainClassOf(r, 7)).toBe("159");
+    expect(trainClassOf(r)).toBe("159");
+    expect(trainClassOf({ service: { allocationData: [] } })).toBeUndefined();
+    expect(trainClassOf({})).toBeUndefined();
+    expect(trainClassOf({ service: { allocationData: [{ leadingClass: "Class 158" }] } })).toBe("158");
+  });
+  it("carries the allocation index from the line-up, and the demo's classes", () => {
+    const ups = lineUps([{ id: "Z1", headcode: "1Z01", at: 5, direction: "ab", run: 4, origin: "X", destination: "Y", trainClass: "444" }], NOW);
+    ups.a.services![0].locationMetadata!.allocationIndex = 1;
+    const [p] = predictPasses(ups.a, ups.b, 0.5);
+    expect(p.allocationIndex).toBe(1);
+    expect(withDemoClasses([p], [{ id: "Z1", headcode: "1Z01", at: 5, direction: "ab", run: 4, origin: "X", destination: "Y", trainClass: "444" }])[0].trainClass).toBe("444");
   });
 });

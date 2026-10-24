@@ -13,7 +13,7 @@
 
 ## The token rule
 
-Realtime Trains requires that the API token is **never** in a page or app: requests go through our own server, and tokens found in pages are revoked. So the token is a secret in the Worker (`RTT_TOKEN`), set from a GitHub secret at deploy time, and the page only ever calls `/api/…` on the same origin. The health check fails if `web/` mentions RTT's host, the token or an auth header.
+Realtime Trains requires that the API token is **never** in a page or app: requests go through our own server, and tokens found in pages are revoked. So the token is a secret in the Worker (`RTT_TOKEN`), set from a GitHub secret at deploy time, and the page only ever calls `/api/…` on the same origin. The health check fails if `web/` mentions RTT's host, the token or an auth header, and if anything but the Worker and `.github/scripts/rtt-sample.mjs` names RTT's host (`code/rtt-clients`). That script is the probe's `sample` mode, run by hand from GitHub's Actions tab: it uses the same GitHub secret to show what RTT itself sends somewhere (it's how we learned the shape of allocations), and masks the access token in the log.
 
 ## The Worker
 
@@ -29,7 +29,7 @@ Realtime Trains requires that the API token is **never** in a page or app: reque
 
 ## Rate limits
 
-RTT's free plan was reported at about 10 requests a minute, 100 an hour and 1,000 a day. Each refresh is two requests, so one phone refreshing every 60 seconds for an hour is 120: over the hourly limit. The page refreshes every 60 s only when a train is within 10 minutes, and every 2 minutes otherwise, only while it's visible, and waits as long as RTT's `Retry-After` says after a `429`. The Worker's cache shares one lookup between phones.
+RTT's free plan was reported at about 10 requests a minute, 100 an hour and 1,000 a day. Each refresh is two requests (the line-ups at A and B), so one phone refreshing every 60 seconds for an hour is 120: over the free plan's hourly limit. With an allocations entitlement (RTT+), the Worker also asks once per passenger train for its class of train, for the next six only, and keeps the answer for six hours: on a line with 20 trains an hour that's about 20 more an hour, however many phones (phones asking together share each lookup, within one Worker instance; a new instance starts its cache afresh). Those lookups never hold the list up more than 1.5 s, a lookup that fails isn't tried again for ten minutes, none are made while the line-ups are being turned down, and they stop for at least ten minutes after a `429`, so they can't starve the line-ups. The page refreshes every 60 s only when a train is within 10 minutes, and every 2 minutes otherwise, only while it's visible, and waits as long as RTT's `Retry-After` says after a `429`. The Worker's cache shares one lookup between phones.
 
 The cache is a Map in the Worker's memory, in front of the Workers Cache API. On a `workers.dev` address the Cache API does nothing (it needs a custom domain), so for now phones share a lookup when they reach the same Worker instance, which is usual for a family at one bridge. A new instance also asks RTT once to swap the token. If the limits bite, a custom domain (or the paid RTT plan) is the fix.
 

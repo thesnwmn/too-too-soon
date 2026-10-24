@@ -1,6 +1,7 @@
-// Talking to Realtime Trains: the token, the location line-up, and what the token may do.
-// The only code that knows RTT's host or the token. See docs/architecture.md#the-token-rule.
-import type { RttLocationResponse } from "@too-too-soon/core";
+// Talking to Realtime Trains: the token, the location line-up, a service's allocations, and
+// what the token may do. The site's only code that knows RTT's host or the token (the other is
+// .github/scripts/rtt-sample.mjs, run by hand from GitHub). See docs/architecture.md#the-token-rule.
+import type { RttLocationResponse, RttServiceResponse } from "@too-too-soon/core";
 
 export const RTT = "https://data.rtt.io";
 
@@ -119,6 +120,13 @@ export async function lineUp(code: string, secret: string, deps: Deps): Promise<
   if (r.status === 204) return { services: [] };
   if (!r.ok) throw new RttError(r.status, `RTT answered ${r.status} for ${code}`, retryAfter(r));
   return (await r.json()) as RttLocationResponse;
+}
+
+/** One service in full, for its allocations (rolling stock). `id` is RTT's uniqueIdentity, with or without its "gb-nr:" namespace. */
+export async function service(id: string, secret: string, deps: Deps): Promise<RttServiceResponse> {
+  const r = await get(`/gb-nr/service?${new URLSearchParams({ uniqueIdentity: id.replace(/^gb-nr:/, "") })}`, secret, deps);
+  if (!r.ok) throw new RttError(r.status, `RTT answered ${r.status} for ${id}`, retryAfter(r));
+  return (await r.json()) as RttServiceResponse;
 }
 
 function retryAfter(r: Response): number | undefined {

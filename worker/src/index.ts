@@ -25,7 +25,7 @@ const store: Store = {
 const cacheUrl = (key: string) => `https://cache.too-too-soon.internal/${encodeURIComponent(key)}`;
 
 export default {
-  fetch(request: Request, env: Env): Promise<Response> {
-    return handle(request, env, { fetch: (input, init) => fetch(input, init), now: () => Date.now(), store });
+  fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    return handle(request, env, { fetch: (input, init) => fetch(input, init), now: () => Date.now(), store, waitUntil: (p) => ctx.waitUntil(p) });
   },
 };
