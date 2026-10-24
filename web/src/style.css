@@ -110,10 +110,13 @@ input[type="range"] { padding: 0; accent-color: var(--accent); }
 output { font-weight: 400; color: var(--muted); }
 
 button.wide { width: 100%; margin: 4px 0 8px; }
-.map { height: 60vh; min-height: 320px; border-radius: 16px; overflow: hidden; border: 2px solid var(--line); }
-.pick-actions { display: flex; gap: 10px; justify-content: space-between; }
+/* The picker is one screen: header, map (whatever's left), status, actions. No page scroll. */
+body.picking { overflow: hidden; }
+body.picking main { height: 100vh; height: 100dvh; display: flex; flex-direction: column; padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+body.picking header { flex: none; }
+.map { flex: 1; min-height: 200px; border-radius: 16px; overflow: hidden; border: 2px solid var(--line); }
+body.picking .note { flex: none; margin: 10px 0; }
+.pick-actions { flex: none; display: flex; gap: 10px; }
 .pick-actions button:last-child { flex: 1; }
+button.icon { padding: 8px 12px; display: inline-flex; align-items: center; justify-content: center; }
 .map-label { background: var(--accent); color: #fff; font: 600 13px/1.2 system-ui, sans-serif; padding: 4px 8px; border-radius: 8px; white-space: nowrap; box-shadow: 0 1px 3px rgb(0 0 0 / 0.3); }
-.where { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 4px 0 10px; font-size: 0.95rem; }
-.where code { font-size: 1rem; user-select: all; }
-button.small { min-height: 40px; padding: 6px 12px; }

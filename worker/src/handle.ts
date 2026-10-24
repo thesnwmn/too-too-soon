@@ -1,6 +1,7 @@
 // The Worker's routes. Everything it needs from outside (fetch, the clock, the cache) is
 // passed in, so the tests run it against recorded responses.
 import { type ErrorResponse, type InfoResponse, liveDataLimited, type NextResponse, parseSpot, predictPasses, type RttLocationResponse, upcoming } from "@too-too-soon/core";
+import { osm } from "./osm.ts";
 import { accessToken, type Deps, info, lineUp, RttError, tidyToken } from "./rtt.ts";
 
 export interface Env {
@@ -136,6 +137,7 @@ export async function handle(request: Request, rawEnv: Env, deps: HandlerDeps): 
   if (request.method !== "GET" && !(request.method === "HEAD" && !api)) return json({ error: "GET only" }, 405);
   if (url.pathname === "/api/next") return next(url, env, deps);
   if (url.pathname === "/api/info") return infoRoute(env, deps);
+  if (url.pathname === "/api/osm") return osm(url, deps.fetch);
   if (api) return json({ error: "No such API" }, 404);
   if (env.ASSETS) return env.ASSETS.fetch(request);
   return new Response("Not found", { status: 404 });
