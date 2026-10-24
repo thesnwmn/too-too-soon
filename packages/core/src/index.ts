@@ -4,3 +4,4 @@ export * from "./passes.ts";
 export * from "./rtt.ts";
 export * from "./spot.ts";
 export * from "./locate.ts";
+export * from "./places.ts";

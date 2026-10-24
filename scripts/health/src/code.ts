@@ -38,8 +38,8 @@ export const noToken: Check = {
   },
 };
 
-/** The code that may talk to RTT itself: the Worker, and a sample script run by hand from GitHub. */
-export const RTT_CLIENTS = ["worker/src/rtt.ts", ".github/scripts/rtt-sample.mjs"];
+/** The code that may talk to RTT itself: the Worker, the deploy's place list, and a sample script run by hand from GitHub. */
+export const RTT_CLIENTS = ["worker/src/rtt.ts", ".github/scripts/places.mjs", ".github/scripts/rtt-sample.mjs"];
 /** Where else code lives that might be tempted. */
 const RTT_SCAN = ["web", "packages", "worker/src", ".github"];
 

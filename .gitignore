@@ -4,3 +4,5 @@ dist/
 .DS_Store
 .wrangler/
 .dev.vars
+# Made at deploy time from RTT (.github/scripts/places.mjs).
+web/public/places.json

@@ -21,7 +21,7 @@ on:
         description: How far from A to B, 0 to 1
         default: "0.5"
       sample:
-        description: A location code (or a /data/ path) to show what RTT itself sends (uses the RTT_TOKEN secret), instead of probing the site
+        description: A location code (or a /data/ path, or \"places\" for the search list) to show what RTT itself sends (uses the RTT_TOKEN secret), instead of probing the site
         default: ""
       url:
         description: The site
@@ -46,8 +46,21 @@ jobs:
           B: ${{ inputs.b }}
           F: ${{ inputs.f }}
           SITE: ${{ inputs.url }}
-      - if: inputs.sample != ''
+      - if: inputs.sample != '' && inputs.sample != 'places'
         run: node .github/scripts/rtt-sample.mjs
         env:
           SAMPLE: ${{ inputs.sample }}
           RTT_TOKEN: ${{ secrets.RTT_TOKEN }}
+      # `places`: build the set-up form's place list as the deploy does, and try a few searches.
+      - if: inputs.sample == 'places'
+        env:
+          RTT_TOKEN: ${{ secrets.RTT_TOKEN }}
+        run: |
+          node .github/scripts/places.mjs /tmp/places.json
+          node --input-type=module -e '
+            import { readFileSync } from "node:fs";
+            import { searchPlaces } from "./packages/core/src/places.ts";
+            const p = JSON.parse(readFileSync("/tmp/places.json", "utf8"));
+            for (const q of ["wok", "brookwood", "clapham j", "st albans", "WOKINGJ", "basingstoke"]) console.log(q, "→", searchPlaces(p, q, 6).map((x) => `${x.name} (${x.code}${x.station ? "" : ", timing point"})`).join("; "));
+          '
+          gzip -c /tmp/places.json | wc -c | xargs -I{} echo "gzipped: {} bytes"
