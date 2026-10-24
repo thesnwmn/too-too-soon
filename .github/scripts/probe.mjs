@@ -20,10 +20,24 @@ const spotLines = [];
 if (process.env.PLACE) {
   const at = await coordinates(process.env.PLACE);
   spotLines.push(`**Place:** ${at.lat.toFixed(5)}, ${at.lon.toFixed(5)} (https://www.openstreetmap.org/?mlat=${at.lat}&mlon=${at.lon}#map=17/${at.lat}/${at.lon})`);
+  console.log(spotLines[0]);
+  // Public Overpass servers rate-limit shared runners: try each, a few times, with a pause.
+  const servers = ["https://overpass-api.de/api/interpreter", "https://overpass.private.coffee/api/interpreter"];
+  const overpass = async (data) => {
+    for (let attempt = 0; attempt < 4; attempt++) {
+      for (const url of servers) {
+        const r = await fetch(url, { method: "POST", body: new URLSearchParams({ data }) }).catch(() => undefined);
+        const text = r ? await r.text() : "";
+        if (r?.ok && text.startsWith("{")) return JSON.parse(text).elements ?? [];
+        console.log(`${url}: ${r?.status ?? "no answer"}`);
+      }
+      await new Promise((res) => setTimeout(res, 15_000));
+    }
+    throw new Error("Overpass stayed busy");
+  };
   let found;
   for (const radius of [3000, 8000]) {
-    const r = await fetch("https://overpass-api.de/api/interpreter", { method: "POST", body: new URLSearchParams({ data: overpassQuery(at.lat, at.lon, radius) }) });
-    found = locate((await r.json()).elements ?? [], at);
+    found = locate(await overpass(overpassQuery(at.lat, at.lon, radius)), at);
     if (found) break;
   }
   if (!found) {
