@@ -1,5 +1,5 @@
 // The map picker: tap the railway where you watch from, and it finds the timing points either
-// side (packages/core locate) from OpenStreetMap, through one Overpass query per tap. Loaded
+// side (packages/core locate) from OpenStreetMap, asked through the Worker's /api/osm. Loaded
 // only when the set-up asks for it, so the watch view stays small.
 import * as maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
@@ -10,12 +10,8 @@ import { type Located, locate, type OsmElement, overpassQuery } from "@too-too-s
 
 maplibregl.setWorkerUrl(workerUrl);
 
-/**
- * Public Overpass servers, free and shared: each lets one connection run only a couple of
- * queries at a time and answers 429 ("too many requests") past that. On 429 or a gateway
- * error, try the next.
- */
-const OVERPASS = ["https://overpass-api.de/api/interpreter", "https://overpass.private.coffee/api/interpreter"];
+/** Straight to Overpass, only where there's no Worker (the demo on GitHub Pages). */
+const OVERPASS = "https://overpass-api.de/api/interpreter";
 
 /** OpenStreetMap is busy: worth saying plainly, and worth a wait rather than another tap. */
 class Busy extends Error {}
@@ -31,17 +27,16 @@ export interface Picked {
 }
 
 async function ask(lat: number, lon: number, radius: number, signal: AbortSignal): Promise<OsmElement[]> {
-  const body = new URLSearchParams({ data: overpassQuery(lat, lon, radius) });
-  let last = 0;
-  for (const url of OVERPASS) {
-    // Overpass can be slow or stuck: give up after 30 s rather than "Looking…" for ever.
-    const r = await fetch(url, { method: "POST", body, signal: AbortSignal.any([signal, AbortSignal.timeout(30_000)]) });
-    if (r.ok) return ((await r.json()) as { elements?: OsmElement[] }).elements ?? [];
-    last = r.status;
-    if (![429, 502, 503, 504].includes(r.status)) break;
+  // Overpass can be slow or stuck: give up after 30 s rather than "Looking…" for ever.
+  const timeout = AbortSignal.any([signal, AbortSignal.timeout(30_000)]);
+  const q = new URLSearchParams({ lat: lat.toFixed(5), lon: lon.toFixed(5), radius: String(radius) });
+  let r = await fetch(`api/osm?${q}`, { signal: timeout });
+  if (r.status === 404 && !(r.headers.get("Content-Type") ?? "").includes("json")) {
+    r = await fetch(OVERPASS, { method: "POST", body: new URLSearchParams({ data: overpassQuery(lat, lon, radius) }), signal: timeout });
   }
-  if ([429, 502, 503, 504].includes(last)) throw new Busy("busy");
-  throw new Error(`OpenStreetMap answered ${last}`);
+  if (r.ok) return ((await r.json()) as { elements?: OsmElement[] }).elements ?? [];
+  if ([429, 502, 503, 504].includes(r.status)) throw new Busy("busy");
+  throw new Error(`OpenStreetMap answered ${r.status}`);
 }
 
 /** Ask nearby first, then further out: timing points can be a few km apart in the country. */
@@ -57,30 +52,31 @@ const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`)
 
 /** Opens the picker in `root`; `done` gets the spot, or undefined on cancel. */
 export function openPicker(root: HTMLElement, done: (picked: Picked | undefined) => void): void {
+  // One screen, no scrolling: the map takes whatever height the rest leaves (see .picking in the CSS).
+  document.body.classList.add("picking");
   root.innerHTML = `<header><h1>Tap the railway</h1><button type="button" id="pick-cancel" class="ghost">Cancel</button></header>
-    <p class="intro">Zoom in to where you watch trains from and tap the track (the railway lines are drawn on top).</p>
     <div id="map" class="map"></div>
-    <p id="pick-status" class="note" aria-live="polite">Tap the track.</p>
-    <p id="pick-where" class="where" hidden><span>You tapped <code id="pick-coords"></code></span><button type="button" id="pick-copy" class="ghost small">Copy</button></p>
-    <div class="pick-actions"><button type="button" id="pick-me" class="ghost">Near me</button><button type="button" id="pick-use" disabled>Use this spot</button></div>`;
+    <p id="pick-status" class="note" aria-live="polite">Zoom in to where you watch from and tap the track.</p>
+    <div class="pick-actions">
+      <button type="button" id="pick-me" class="ghost">Near me</button>
+      <button type="button" id="pick-copy" class="ghost icon" disabled aria-label="Copy where you tapped" title="Copy where you tapped"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button>
+      <button type="button" id="pick-use" disabled>Use this spot</button>
+    </div>`;
   const status = root.querySelector<HTMLElement>("#pick-status")!;
-  const where = root.querySelector<HTMLElement>("#pick-where")!;
-  const coords = root.querySelector<HTMLElement>("#pick-coords")!;
   const copy = root.querySelector<HTMLButtonElement>("#pick-copy")!;
-  // Every tap shows where it was, as "lat, lon" anyone can paste into a map or a message.
+  // Every tap remembers where it was, as "lat, lon" anyone can paste into a map or a message.
+  let where = "";
   const showWhere = (lat: number, lon: number) => {
-    coords.textContent = `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
-    copy.textContent = "Copy";
-    where.hidden = false;
+    where = `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+    copy.disabled = false;
   };
   copy.addEventListener("click", async () => {
     try {
-      await navigator.clipboard.writeText(coords.textContent ?? "");
-      copy.textContent = "Copied";
+      await navigator.clipboard.writeText(where);
+      status.textContent = `Copied where you tapped: ${where}`;
     } catch {
-      // No clipboard (an old browser, or not allowed): select the text so it can be copied by hand.
-      getSelection()?.selectAllChildren(coords);
-      copy.textContent = "Select and copy";
+      // No clipboard (an old browser, or not allowed): show it to copy by hand.
+      window.prompt("Where you tapped:", where);
     }
   });
   const use = root.querySelector<HTMLButtonElement>("#pick-use")!;
@@ -138,16 +134,18 @@ export function openPicker(root: HTMLElement, done: (picked: Picked | undefined)
       );
       picked = { a: found.a.code, b: found.b.code, f: Math.round(found.f * 100) / 100, aName: found.a.name, bName: found.b.name };
       const km = (m: number) => (m < 1000 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toFixed(1)} km`);
-      status.innerHTML = `Between <b>${esc(found.a.name)}</b> (${km(found.a.along)} away) and <b>${esc(found.b.name)}</b> (${km(found.b.along)} away), on the track's timing points ${esc(found.a.code)} and ${esc(found.b.code)}.`;
+      status.innerHTML = `Between <b>${esc(found.a.name)}</b> (${km(found.a.along)}) and <b>${esc(found.b.name)}</b> (${km(found.b.along)}).`;
       use.disabled = false;
     } catch (err) {
       if (mine !== asking || (err as Error).name === "AbortError") return;
       status.textContent =
         err instanceof Busy
-          ? "OpenStreetMap is busy (it's a free service, shared by everyone): wait half a minute, then tap again. The coordinates above work meanwhile."
+          ? "OpenStreetMap is busy (it's a free service, shared by everyone): wait half a minute, then tap again."
           : (err as Error).name === "TimeoutError"
             ? "OpenStreetMap is slow to answer just now: try again in a moment."
-            : `${(err as Error).message}: try again in a moment.`;
+            : (err as Error).name === "TypeError"
+              ? "Couldn't reach OpenStreetMap: no signal? Try again in a moment."
+              : `${(err as Error).message}: try again in a moment.`;
     }
   });
 
@@ -158,7 +156,9 @@ export function openPicker(root: HTMLElement, done: (picked: Picked | undefined)
     );
   });
   const close = (result: Picked | undefined) => {
+    inFlight?.abort();
     map.remove();
+    document.body.classList.remove("picking");
     done(result);
   };
   use.addEventListener("click", () => picked && close(picked));
