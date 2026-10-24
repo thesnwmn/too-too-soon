@@ -4,6 +4,7 @@ kind: build
 role: designer
 size: M
 status: doing
+pr: 18
 ---
 
 ## Why

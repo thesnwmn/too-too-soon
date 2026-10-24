@@ -8,6 +8,9 @@
   --accent: #14532d;
   --accent-ink: #fde047;
   --freight: #9a3412;
+  /* From the engine: its green, its brass, its red buffer beam. */
+  --brand-ink: #14532d;
+  --buffer: #dc2626;
   color-scheme: light dark;
 }
 @media (prefers-color-scheme: dark) {
@@ -19,6 +22,8 @@
     --line: #334155;
     --accent: #166534;
     --freight: #c2410c;
+    --brand-ink: #fde047;
+    --buffer: #ef4444;
   }
 }
 * { box-sizing: border-box; }
@@ -36,6 +41,22 @@ main {
 }
 header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 h1 { font-size: 1.25rem; margin: 8px 0; overflow-wrap: anywhere; }
+
+/* The engine and the word mark (src/brand.ts). */
+.brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.brand h1 { margin: 0; }
+.logo { width: 44px; height: 44px; flex: none; }
+.wordmark {
+  display: inline-block;
+  white-space: nowrap;
+  color: var(--brand-ink);
+  font: 900 1.6rem/1.1 ui-rounded, "Arial Rounded MT Bold", system-ui, sans-serif;
+  letter-spacing: -0.01em;
+}
+.wordmark .wheels { width: 1.16em; height: 0.7em; margin-left: 0.01em; vertical-align: -0.02em; }
+.wordmark .gap { display: inline-block; width: 0.26em; }
+.wordmark.small { font-size: 0.95rem; display: block; }
+header .brand + button, header > button { flex: none; }
 a { color: inherit; }
 button {
   font: inherit;

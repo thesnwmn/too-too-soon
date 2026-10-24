@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mapLazy, noDom, noToken, typecheck, wrangler } from "../src/code.ts";
+import { icons, mapLazy, noDom, noToken, pngSize, typecheck, wrangler } from "../src/code.ts";
 import { ctx, fakeShell, tmpDir } from "./fixture.ts";
 
 describe("code/typecheck (and the other pnpm runs)", () => {
@@ -54,5 +54,28 @@ describe("code/map-lazy", () => {
   it("fails on the picker imported statically, or re-exported", () => {
     expect(mapLazy.run(ctx(tmpDir({ ...picker, "web/src/main.ts": 'import { openPicker } from "./picker.ts";\n' }))).status).toBe("fail");
     expect(mapLazy.run(ctx(tmpDir({ ...picker, "web/src/map.ts": 'export { Map } from "maplibre-gl";\n' }))).status).toBe("fail");
+  });
+});
+
+describe("code/icons", () => {
+  /** Just a PNG's signature and header: enough to say its size. */
+  const png = (w: number, h: number) => {
+    const b = new Uint8Array(24);
+    b.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52]);
+    new DataView(b.buffer).setUint32(16, w);
+    new DataView(b.buffer).setUint32(20, h);
+    return b;
+  };
+  const manifest = JSON.stringify({ icons: [{ src: "icon.svg", sizes: "any" }, { src: "icon-180.png", sizes: "180x180" }] });
+  it("reads a PNG's size", () => expect(pngSize(png(180, 90))).toEqual({ w: 180, h: 90 }));
+  it("passes when every icon is there at its size", () => {
+    const root = tmpDir({ "web/public/manifest.webmanifest": manifest, "web/public/icon.svg": "<svg/>", "web/public/icon-180.png": png(180, 180) });
+    expect(icons.run(ctx(root)).status).toBe("pass");
+  });
+  it("fails on an icon at the wrong size, or missing", () => {
+    const r = icons.run(ctx(tmpDir({ "web/public/manifest.webmanifest": manifest, "web/public/icon-180.png": png(192, 192) })));
+    expect(r.status).toBe("fail");
+    expect(r.detail).toContain("icon.svg: missing");
+    expect(r.detail).toContain("icon-180.png: 192x192");
   });
 });
