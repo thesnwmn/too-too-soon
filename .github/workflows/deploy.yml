@@ -1,13 +1,17 @@
 name: Deploy
 
 # Every merge to main deploys the Worker, with the built page as its static assets, to
-# Cloudflare's free plan. It needs repository secrets (studio/producer-guide.md#one-time-setup);
+# Cloudflare's free plan, with RTT's list of stations and timing points for the set-up form's
+# search (fetched here, weekly as well, since the list changes). It needs repository secrets (studio/producer-guide.md#one-time-setup);
 # without them it says so and stops, rather than failing. Each secret goes only to the steps
 # that use it.
 on:
   push:
     branches: [main]
   workflow_dispatch:
+  # Weekly too, so the list of stations and timing points stays fresh.
+  schedule:
+    - cron: "17 4 * * 1"
 
 permissions:
   contents: read
@@ -46,6 +50,11 @@ jobs:
           cache: pnpm
       - if: steps.ready.outputs.ok == 'true'
         run: pnpm install --frozen-lockfile
+      - name: Fetch the list of stations and timing points for the search
+        if: steps.ready.outputs.ok == 'true' && steps.ready.outputs.rtt == 'true'
+        env:
+          RTT_TOKEN: ${{ secrets.RTT_TOKEN }}
+        run: node .github/scripts/places.mjs web/public/places.json
       - if: steps.ready.outputs.ok == 'true'
         run: pnpm --filter @too-too-soon/web build
 

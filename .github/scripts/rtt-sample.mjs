@@ -20,6 +20,20 @@ if (swap.ok) {
 }
 const get = (path) => fetch(`${RTT}${path}`, { headers: { Authorization: `Bearer ${token}`, Accept: "application/json" } });
 const code = process.env.SAMPLE;
+// A reference list ("/data/stops"): how big it is, and a few entries.
+if (code.startsWith("/data/")) {
+  const r = await get(code);
+  const text = await r.text();
+  let body = {};
+  try {
+    body = JSON.parse(text);
+  } catch {}
+  const list = Object.values(body).find(Array.isArray) ?? [];
+  const out = [`## RTT ${code}: ${r.status}, ${Math.round(text.length / 1024)} KB, ${list.length} entries`, "", "```json", JSON.stringify({ keys: Object.keys(body), first: list.slice(0, 5), woking: list.filter((x) => /woking|brookwood/i.test(x.description ?? "")).slice(0, 12) }, null, 2), "```"].join("\n");
+  console.log(out);
+  if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, out + "\n");
+  process.exit(0);
+}
 const r = await get(`/gb-nr/location?${new URLSearchParams({ code, detailed: "true" })}`);
 const lines = [`## RTT sample at ${code}: ${r.status}`, ""];
 const body = r.ok ? await r.json() : {};

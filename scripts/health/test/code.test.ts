@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { icons, mapLazy, rttHost, noDom, noToken, pngSize, typecheck, wrangler } from "../src/code.ts";
+import { icons, mapLazy, places, rttHost, noDom, noToken, pngSize, typecheck, wrangler } from "../src/code.ts";
 import { ctx, fakeShell, tmpDir } from "./fixture.ts";
 
 describe("code/typecheck (and the other pnpm runs)", () => {
@@ -89,5 +89,18 @@ describe("code/rtt-clients", () => {
     const r = rttHost.run(ctx(tmpDir({ "worker/src/rtt.ts": rtt, ".github/scripts/probe.mjs": rtt, "packages/core/src/x.ts": rtt })));
     expect(r.status).toBe("fail");
     expect(r.out?.split("\n").sort()).toEqual([".github/scripts/probe.mjs", "packages/core/src/x.ts"]);
+  });
+});
+
+describe("code/places", () => {
+  const good = JSON.stringify({ v: 1, stations: [["Woking", "WOK"]], others: [["Woking Jn", "WOKINGJ"]] });
+  it("passes with no list made, or a good one", () => {
+    expect(places.run(ctx(tmpDir())).status).toBe("pass");
+    expect(places.run(ctx(tmpDir({ "web/public/places.json": good }))).status).toBe("pass");
+  });
+  it("fails on the wrong shape, or a list that's far too big", () => {
+    expect(places.run(ctx(tmpDir({ "web/public/places.json": '{"v":1,"stations":[],"others":[]}' }))).detail).toBe("no stations");
+    expect(places.run(ctx(tmpDir({ "web/public/places.json": JSON.stringify({ v: 1, stations: [["Woking", "wok"]], others: [] }) }))).detail).toBe("a station isn't [name, code]");
+    expect(places.run(ctx(tmpDir({ "web/public/places.json": "x".repeat(1_600_000) }))).status).toBe("fail");
   });
 });

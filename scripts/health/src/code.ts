@@ -2,6 +2,7 @@
 // CLAUDE.md that a script can test still hold.
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { placesProblems } from "../../../packages/core/src/places.ts";
 import { type Check, type Ctx, fail, findInCode, pass, sourceFiles, tail } from "./check.ts";
 
 const pnpmScript = (id: string, script: string, hint: string, slow = false): Check => ({
@@ -38,8 +39,8 @@ export const noToken: Check = {
   },
 };
 
-/** The code that may talk to RTT itself: the Worker, and a sample script run by hand from GitHub. */
-export const RTT_CLIENTS = ["worker/src/rtt.ts", ".github/scripts/rtt-sample.mjs"];
+/** The code that may talk to RTT itself: the Worker, the deploy's place list, and a sample script run by hand from GitHub. */
+export const RTT_CLIENTS = ["worker/src/rtt.ts", ".github/scripts/places.mjs", ".github/scripts/rtt-sample.mjs"];
 /** Where else code lives that might be tempted. */
 const RTT_SCAN = ["web", "packages", "worker/src", ".github"];
 
@@ -141,5 +142,21 @@ export const icons: Check = {
   },
 };
 
+/** The set-up form's place list, made at deploy time (.github/scripts/places.mjs), so only there when one's been made. */
+export const PLACES = "web/public/places.json";
+
+export const places: Check = {
+  id: "code/places",
+  tier: 4,
+  repro: `node -e "console.log(require('fs').statSync('${PLACES}').size)"`,
+  hint: "The place list the set-up form searches is { v: 1, stations: [[name, CRS]], others: [[name, TIPLOC]] } and under PLACES_MAX_BYTES (packages/core/src/places.ts). It's made by .github/scripts/places.mjs, which makes the same check before writing it.",
+  run({ root }) {
+    const path = join(root, PLACES);
+    if (!existsSync(path)) return pass("none made here");
+    const problems = placesProblems(readFileSync(path, "utf8"));
+    return problems.length ? fail(problems.join("; ")) : pass(`${Math.round(readFileSync(path).length / 1024)} KB`);
+  },
+};
+
 // Cheap scans first, so a broken convention shows before the slow runs.
-export const CODE = [noToken, rttHost, noDom, wrangler, mapLazy, icons, typecheck, test, build];
+export const CODE = [noToken, rttHost, noDom, wrangler, mapLazy, icons, places, typecheck, test, build];
