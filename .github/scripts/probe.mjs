@@ -26,7 +26,8 @@ if (process.env.PLACE) {
   const overpass = async (data) => {
     for (let attempt = 0; attempt < 4; attempt++) {
       for (const url of servers) {
-        const r = await fetch(url, { method: "POST", body: new URLSearchParams({ data }) }).catch(() => undefined);
+        // overpass-api.de turns away requests that don't say who they are (406).
+        const r = await fetch(url, { method: "POST", body: new URLSearchParams({ data }), headers: { "User-Agent": "too-too-soon-probe/1 (+https://github.com/thesnwmn/too-too-soon)", Accept: "application/json" } }).catch(() => undefined);
         const text = r ? await r.text() : "";
         if (r?.ok && text.startsWith("{")) return JSON.parse(text).elements ?? [];
         console.log(`${url}: ${r?.status ?? "no answer"}`);
