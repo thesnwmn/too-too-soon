@@ -2,7 +2,7 @@
 // With PLACE (a map link or "lat,lon"), first finds the spot's timing points from OpenStreetMap,
 // with the same `locate` the map picker uses.
 import { appendFileSync } from "node:fs";
-import { locate, overpassQuery } from "../../packages/core/src/locate.ts";
+import { distance, locate, overpassQuery } from "../../packages/core/src/locate.ts";
 
 /** Coordinates from "lat,lon" or a Google Maps link, following a short link's redirects. */
 async function coordinates(place) {
@@ -37,12 +37,31 @@ if (process.env.PLACE) {
     throw new Error("Overpass stayed busy");
   };
   let found;
+  let elements = [];
   for (const radius of [3000, 8000]) {
-    found = locate(await overpass(overpassQuery(at.lat, at.lon, radius)), at);
+    elements = await overpass(overpassQuery(at.lat, at.lon, radius));
+    found = locate(elements, at);
     if (found) break;
   }
   if (!found) {
-    spotLines.push("", "No running line with timing points either side within 200 m of that place.");
+    // Say why: how far the nearest running line is, and which timing points are about.
+    const ways = elements.filter((e) => e.type === "way");
+    let near;
+    for (const w of ways) for (const p of w.geometry ?? []) {
+      const d = distance(at, p);
+      if (!near || d < near.d) near = { d, tags: w.tags ?? {} };
+    }
+    const tiplocs = elements
+      .filter((e) => e.type === "node")
+      .map((n) => ({ code: n.tags?.["ref:tiploc"], name: n.tags?.name, d: distance(at, n) }))
+      .sort((x, y) => x.d - y.d)
+      .slice(0, 8);
+    spotLines.push(
+      "",
+      "No running line with timing points either side within 200 m of that place.",
+      `${ways.length} running-line ways within 8 km; the nearest track point is ${near ? `${Math.round(near.d)} m away (${JSON.stringify(near.tags)})` : "none"}.`,
+      `Nearest timing points: ${tiplocs.map((t) => `${t.code} ${t.name ?? ""} ${Math.round(t.d)} m`).join("; ") || "none"}`,
+    );
     console.log(spotLines.join("\n"));
     if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, spotLines.join("\n") + "\n");
     process.exit(0);
