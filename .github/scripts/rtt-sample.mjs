@@ -30,9 +30,10 @@ for (const s of pick) {
   lines.push("```json", JSON.stringify({ scheduleMetadata, locationMetadata, origin: origin?.map((o) => o.location), destination: destination?.map((d) => d.location), keys: Object.keys(s) }, null, 2), "```", "");
 }
 // One service in full, for its allocationData.
-const id = pick[0]?.scheduleMetadata?.uniqueIdentity;
+// The service query takes the identity without its "gb-nr:" namespace.
+const id = pick[0]?.scheduleMetadata?.uniqueIdentity?.replace(/^gb-nr:/, "");
 if (id) {
-  const sr = await get(`/gb-nr/service?${new URLSearchParams({ uniqueIdentity: id })}`);
+  const sr = await get(`/gb-nr/service?${new URLSearchParams({ uniqueIdentity: id, detailed: "true" })}`);
   const sb = sr.ok ? await sr.json() : {};
   lines.push(`### /gb-nr/service ${id}: ${sr.status}`, "", "```json", JSON.stringify({ allocationData: sb.service?.allocationData, scheduleMetadata: sb.service?.scheduleMetadata, keys: Object.keys(sb.service ?? {}) }, null, 2).slice(0, 6000), "```");
 }
