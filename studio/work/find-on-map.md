@@ -3,7 +3,7 @@ title: Find on map: every timing point on the map, tap one to see it and use it
 kind: build
 role: engineer
 size: M
-status: doing
+status: trial
 pr: 31
 milestone: m1-first-trains
 needs: [point-coords]
@@ -33,3 +33,4 @@ Tapping the track to work out how far along the spot is (the existing picker; `p
 - 2026-10-25 the producer, adding to it: "from any point on the picker it can jump to filling the form. So you can use the map as a 'pick a specific spot' (when we make that work) or a picker for filling the form and the user does the %age bit themselves if using two points." Added to Done when.
 - 2026-10-25 ready: `point-coords` placed 2,618 stations (no junctions yet: ask `junction-points`). The dots' kind and name come from `places.json`, joined by code (a code in both lists is the station, as `compactPoints` takes it).
 - 2026-10-25 `map-junctions` added 3,064 junctions and other timing points from BPLAN to `points.json` (153 KB, 62 KB gzipped): thin them at low zoom. Some are left out by its 5 km and 15 km cut-offs; a missing dot may be one of those (docs/how-it-works.md, "If a point is missing from the map").
+- 2026-10-25 built (#31). A Find on map button on each place box, and the same dots in Pick on a map: green stations, orange junctions, grey other timing points, gathered with a count when zoomed out; a tap opens a card (name, kind, CRS or TIPLOC) with "Use this", or "Use as the one place / A / B". B's map opens on A. `points.json` and `places.json` are kept on the phone (`web/src/kept.ts`). The Pages demo has a 14-place sample around Woking (`web/demo/`). Tester (on a blank stand-in map, as sessions can't reach the tile servers): one screen with no scroll at 390×844, 375×667 and 360×640, card included; every fill and mode right, the form kept; B centred exactly on A; the kept copy shows dots with points.json blocked. Critic and Tester: the credits now use the Open Government Licence's own words (and credit Realtime Trains for the names); places.json is kept too, or offline dots had no names; focus no longer lost when the card closes; Escape closes the card, then the map; the map pans so the tapped dot isn't under the card. **A default the producer can change:** a station's card shows its CRS only, not its TIPLOC (the place list keys stations by CRS; showing both means carrying the TIPLOC in the file). Left for the trial at Brookwood: the real tiles, names at zoom 12+, the cluster counts, all three credits together, and the dots with no signal after one visit with it. Keyboard users can't reach a dot on the canvas (the search box is their way). [Session](../sessions/2026-10-25-0800-find-on-map.md).

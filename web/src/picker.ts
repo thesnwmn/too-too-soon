@@ -163,11 +163,12 @@ export function openPicker(root: HTMLElement, opts: PickerOptions, done: (result
       <div class="card-uses">${uses}</div>`;
     card.hidden = false;
     card.querySelector<HTMLButtonElement>("[data-use]")!.focus();
+    // Keep the dot in sight above the card (on a small phone the card is over half the map).
+    map.easeTo({ center: [p.lon, p.lat], padding: { top: 0, left: 0, right: 0, bottom: card.offsetHeight + 16 }, duration: 300 });
     card.querySelector(".card-close")!.addEventListener("click", () => hideCard(true));
     for (const b of card.querySelectorAll<HTMLButtonElement>("[data-use]"))
       b.addEventListener("click", () => close({ box: b.dataset.use as "a" | "b", code: p.code, name: p.name, mode: b.dataset.mode as "one" | "two" | undefined }));
   };
-  card.addEventListener("keydown", (e) => e.key === "Escape" && hideCard(true));
 
   /** A dot (or a cluster of them) under a tap, with room for a finger: true when it took the tap. */
   const tappedDot = (e: maplibregl.MapMouseEvent): boolean => {
@@ -267,6 +268,13 @@ export function openPicker(root: HTMLElement, opts: PickerOptions, done: (result
     }
   });
 
+  // The keyboard starts on the map (arrows pan it, + and - zoom); Escape closes the card, else the map.
+  map.getCanvas().focus();
+  root.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape" || e.defaultPrevented) return;
+    if (!card.hidden) hideCard(true);
+    else close(undefined);
+  });
   root.querySelector("#pick-me")!.addEventListener("click", () => {
     navigator.geolocation?.getCurrentPosition(
       (p) => map.flyTo({ center: [p.coords.longitude, p.coords.latitude], zoom: 15 }),
