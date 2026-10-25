@@ -4,7 +4,8 @@ name: Probe
 # workers.dev): /api/info, then /api/next for a spot. Run it by hand, from the Actions tab or a session.
 # Give `place` (a Google Maps link, short or long, or "lat,lon") to find the spot's timing points
 # from OpenStreetMap the way the map picker does, instead of a and b. Give `sample` (a location
-# code) to see what RTT itself sends there, fields and all, using the RTT_TOKEN secret.
+# code) to see what RTT itself sends there, fields and all, using the RTT_TOKEN secret. The secrets
+# (RTT_TOKEN, and SITE_URL, the site's address) are the `production` environment's, so it runs from main.
 on:
   workflow_dispatch:
     inputs:
@@ -24,8 +25,8 @@ on:
         description: A location code (or a /data/ path, or places for the search list) to show what RTT itself sends (uses the RTT_TOKEN secret), instead of probing the site
         default: ""
       url:
-        description: The site
-        default: https://too-too-soon.justin-fc2.workers.dev
+        description: The site (blank for the SITE_URL secret)
+        default: ""
 
 permissions:
   contents: read
@@ -33,6 +34,7 @@ permissions:
 jobs:
   probe:
     runs-on: ubuntu-latest
+    environment: production
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -45,7 +47,7 @@ jobs:
           A: ${{ inputs.a }}
           B: ${{ inputs.b }}
           F: ${{ inputs.f }}
-          SITE: ${{ inputs.url }}
+          SITE: ${{ inputs.url || secrets.SITE_URL }}
       - if: inputs.sample != '' && inputs.sample != 'places'
         run: node .github/scripts/rtt-sample.mjs
         env:

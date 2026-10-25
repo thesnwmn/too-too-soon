@@ -77,7 +77,7 @@ if (process.env.PLACE) {
 
 const site = (process.env.SITE || "").replace(/\/$/, "");
 if (!site) {
-  console.log("::error::No site: give the url input.");
+  console.log("::error::No site: give the url input, or set the SITE_URL secret in the production environment.");
   process.exit(1);
 }
 const q = new URLSearchParams({ a: process.env.A ?? "", b: process.env.B ?? "", f: process.env.F ?? "0.5" });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bplanAt, icons, mapLazy, places, points, rttHost, noDom, noToken, pngSize, typecheck, wrangler } from "../src/code.ts";
+import { bplanAt, icons, mapLazy, places, points, rttHost, noDom, noSiteAddress, noToken, pngSize, typecheck, workflows, wrangler } from "../src/code.ts";
 import { ctx, fakeShell, tmpDir } from "./fixture.ts";
 import { packPoints } from "../../../packages/core/src/points.ts";
 
@@ -166,5 +166,41 @@ describe("code/bplan", () => {
   });
   it("warns once it's two years past its end", () => {
     expect(at(kept(3500, "01-06-2023 to 10-12-2023, made 20-05-2023")).status).toBe("warn");
+  });
+});
+
+describe("code/workflows", () => {
+  const at = (yml: string) => workflows.run(ctx(tmpDir({ ".github/workflows/w.yml": yml })));
+  const job = (lines: string) => `on: push\njobs:\n  deploy:\n    runs-on: ubuntu-latest\n${lines}    steps:\n      - uses: actions/checkout@v4\n      - run: deploy\n        env:\n          T: \${{ secrets.CLOUDFLARE_API_TOKEN }}\n`;
+  it("passes a job whose secrets are the production environment's, and GITHUB_TOKEN anywhere", () => {
+    expect(at(job("    environment: production\n")).status).toBe("pass");
+    expect(at(job("    environment:\n      name: production\n      url: x\n")).status).toBe("pass");
+    expect(at("on: pull_request\njobs:\n  t:\n    steps:\n      - run: x\n        env:\n          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}\n").status).toBe("pass");
+  });
+  it("fails a job that uses a secret with no environment, or another one", () => {
+    expect(at(job("")).out).toBe(".github/workflows/w.yml: job deploy uses CLOUDFLARE_API_TOKEN without environment: production");
+    expect(at(job("    environment: staging\n")).status).toBe("fail");
+    expect(at(job("    # environment: production\n")).status).toBe("fail");
+  });
+  it("fails a secret given to the whole workflow", () => {
+    expect(at("on: push\nenv:\n  T: ${{ secrets.RTT_TOKEN }}\njobs:\n  a:\n    environment: production\n    steps: []\n").out).toBe(".github/workflows/w.yml: RTT_TOKEN outside any job");
+  });
+  it("fails someone else's action by tag, passes it by commit, and GitHub's by tag", () => {
+    const uses = (ref: string) => at(`on: push\njobs:\n  a:\n    steps:\n      - uses: actions/checkout@v4\n      - uses: ${ref}\n`);
+    expect(uses("pnpm/action-setup@v4").out).toBe(".github/workflows/w.yml: pnpm/action-setup@v4 isn't pinned to a commit");
+    expect(uses("pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0").status).toBe("pass");
+    expect(uses("./.github/actions/local").status).toBe("pass");
+  });
+});
+
+describe("code/no-site-address", () => {
+  // Built at runtime, so this file never holds an address.
+  const address = ["too-too-soon", "someone", "workers", "dev"].join(".");
+  it("passes on the generic address and the bare domain", () => {
+    expect(noSiteAddress.run(ctx(tmpDir({ "README.md": "Deploys to `too-too-soon.<your-subdomain>.workers.dev`, a workers.dev address.\n" }))).status).toBe("pass");
+  });
+  it("fails on the site's own address, in docs or a workflow", () => {
+    expect(noSiteAddress.run(ctx(tmpDir({ "README.md": `Live: https://${address}/\n` }))).out).toBe(`README.md:1: Live: https://${address}/`);
+    expect(noSiteAddress.run(ctx(tmpDir({ ".github/workflows/p.yml": `default: https://${address}\n` }))).status).toBe("fail");
   });
 });

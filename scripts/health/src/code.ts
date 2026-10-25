@@ -93,6 +93,72 @@ export const wrangler: Check = {
   },
 };
 
+export const WORKFLOWS = ".github/workflows";
+/** The environment whose secrets only main may use (studio/producer-guide.md#one-time-setup). */
+export const ENVIRONMENT = "production";
+/** Actions by GitHub itself, which may go by tag; anyone else's is pinned to a commit. */
+const FIRST_PARTY = ["actions"];
+
+/** A workflow's text before `jobs:`, and its jobs (the keys two spaces in under it) as their name and lines, comments blanked. */
+function workflowJobs(yml: string): { top: string; jobs: { name: string; text: string }[] } {
+  const lines = yml.split("\n").map((l) => l.replace(/(^|\s)#.*$/, ""));
+  const start = lines.findIndex((l) => /^jobs:\s*$/.test(l));
+  const top = (start < 0 ? lines : lines.slice(0, start)).join("\n");
+  const jobs: { name: string; text: string }[] = [];
+  for (const line of start < 0 ? [] : lines.slice(start + 1)) {
+    const m = /^ {2}([\w-]+):\s*$/.exec(line);
+    if (m) jobs.push({ name: m[1], text: "" });
+    else if (jobs.length) jobs[jobs.length - 1].text += line + "\n";
+  }
+  return { top, jobs };
+}
+
+export const workflows: Check = {
+  id: "code/workflows",
+  tier: 4,
+  repro: `grep -nE "secrets\\.|environment:|uses:" ${WORKFLOWS}/*.yml`,
+  hint: `A workflow on any branch gets the repository's secrets, so ours live in the "${ENVIRONMENT}" environment, which only main may use: a job that uses a secret (other than GITHUB_TOKEN) says \`environment: ${ENVIRONMENT}\`. And an action not by GitHub (\`actions/…\`) is pinned to a full commit SHA, with its version in a comment, since a tag can be moved. See studio/producer-guide.md#one-time-setup.`,
+  run({ root }) {
+    const files = sourceFiles(root, WORKFLOWS, [".yml", ".yaml"]);
+    const problems: string[] = [];
+    for (const f of files) {
+      const yml = readFileSync(join(root, f), "utf8");
+      const { top, jobs } = workflowJobs(yml);
+      const secrets = (text: string) => [...new Set([...text.matchAll(/\bsecrets\.(\w+)/g)].map((m) => m[1]).filter((s) => s !== "GITHUB_TOKEN"))];
+      const outside = secrets(top);
+      if (outside.length) problems.push(`${f}: ${outside.join(", ")} outside any job`);
+      for (const job of jobs) {
+        const used = secrets(job.text);
+        const env = new RegExp(`^ {4}environment:\\s*(["']?)${ENVIRONMENT}\\1\\s*$|^ {4}environment:\\s*\\n {6}name:\\s*(["']?)${ENVIRONMENT}\\2\\s*$`, "m");
+        if (used.length && !env.test(job.text)) problems.push(`${f}: job ${job.name} uses ${used.join(", ")} without environment: ${ENVIRONMENT}`);
+      }
+      for (const m of yml.matchAll(/^\s*-?\s*uses:\s*["']?([^"'\s#]+)/gm)) {
+        const ref = m[1];
+        if (ref.startsWith("./") || ref.startsWith("docker://")) continue;
+        if (!FIRST_PARTY.includes(ref.split("/")[0]) && !/@[0-9a-f]{40}$/.test(ref)) problems.push(`${f}: ${ref} isn't pinned to a commit`);
+      }
+    }
+    return problems.length ? fail(`${problems.length} problem${problems.length === 1 ? "" : "s"}`, problems.join("\n")) : pass(`${files.length} workflows`);
+  },
+};
+
+/** Where the repo's text is: the site's own address mustn't be in any of it. */
+const ADDRESS_SCAN = ["README.md", "CLAUDE.md", ".claude", ".github", "docs", "studio", "web/src", "web/index.html", "worker/src", "worker/wrangler.toml", "packages", "scripts"];
+/** A workers.dev address with its account's subdomain: `name.<subdomain>.workers.dev`, filled in. */
+const SITE_ADDRESS = /\b[a-z0-9-]+\.[a-z0-9-]+\.workers\.dev\b/i;
+
+export const noSiteAddress: Check = {
+  id: "code/no-site-address",
+  tier: 4,
+  repro: `grep -rnE "[a-z0-9-]+\\.[a-z0-9-]+\\.workers\\.dev" ${ADDRESS_SCAN.join(" ")}`,
+  hint: "The repo is public, so the live site's address stays out of it: it's the SITE_URL secret in the production environment, and the deploy masks it in the logs. Write \"the site\" (or `too-too-soon.<your-subdomain>.workers.dev` in instructions) instead.",
+  run({ root }) {
+    const files = ADDRESS_SCAN.flatMap((d) => sourceFiles(root, d, [".ts", ".mjs", ".js", ".html", ".md", ".yml", ".yaml", ".json", ".toml"]));
+    const hits = files.flatMap((f) => readFileSync(join(root, f), "utf8").split("\n").flatMap((line, i) => (SITE_ADDRESS.test(line) ? [`${f}:${i + 1}: ${line.trim()}`] : [])));
+    return hits.length ? fail(`${hits.length} mention${hits.length === 1 ? "" : "s"}`, hits.join("\n")) : pass(`${files.length} files`);
+  },
+};
+
 /** The map picker, the only page code that may load MapLibre, and only by a dynamic import. */
 export const PICKER = "web/src/picker.ts";
 /** The picker's track finder (picker-offline), the only other page code that may load the vector tile decoder, and only from the picker. */
@@ -216,4 +282,4 @@ export const bplanAt = (now: () => number): Check => ({
 export const bplan = bplanAt(Date.now);
 
 // Cheap scans first, so a broken convention shows before the slow runs.
-export const CODE = [noToken, rttHost, noDom, wrangler, mapLazy, icons, places, points, bplan, typecheck, test, build];
+export const CODE = [noToken, rttHost, noDom, wrangler, workflows, noSiteAddress, mapLazy, icons, places, points, bplan, typecheck, test, build];
