@@ -4,6 +4,7 @@ kind: build
 role: engineer
 size: S
 status: doing
+pr: 28
 milestone: m1-first-trains
 ---
 
