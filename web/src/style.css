@@ -180,6 +180,14 @@ input[type="range"] { padding: 0; accent-color: var(--accent); }
 output { font-weight: 400; color: var(--muted); }
 
 button.wide { width: 100%; margin: 4px 0 8px; }
+/* Your spots (main.ts yourSpots): a tap to watch one again, ✕ to forget it. */
+.mine h2 { font-size: 1.05rem; margin: 12px 0 8px; }
+.mine ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.mine li { display: flex; gap: 8px; }
+.mine .go-spot { flex: 1; min-width: 0; text-align: left; display: grid; gap: 2px; padding: 10px 14px; }
+.mine .go-spot b, .mine .go-spot small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mine .go-spot small { color: var(--muted); font-size: 0.85rem; }
+.mine .forget { flex: none; min-width: 48px; color: var(--muted); }
 /* The picker is one screen: header, map (whatever's left), status, actions. No page scroll. */
 body.picking { overflow: hidden; }
 body.picking main { height: 100vh; height: 100dvh; display: flex; flex-direction: column; padding-bottom: max(12px, env(safe-area-inset-bottom)); }
