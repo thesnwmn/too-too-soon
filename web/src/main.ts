@@ -3,6 +3,7 @@
 import { withDemoClasses, demoLineUps, type ErrorResponse, type NextResponse, parseSpot, type Pass, predictAt, predictPasses, type Spot, spotParams, upcoming } from "@too-too-soon/core";
 import { logo, wordmark } from "./brand.ts";
 import { loadPlaces, placeField, resolvePlace, wirePlaceField } from "./places.ts";
+import { forget, recentSpots, remember } from "./recent.ts";
 import { about, clock, towardsText, countdown, direction, inMinutes, refreshAfter, stopping, sureness, what } from "./format.ts";
 
 const app = document.getElementById("app")!;
@@ -11,7 +12,6 @@ const params = new URLSearchParams(location.search);
 let demo = params.has("demo") || import.meta.env.VITE_DEMO === "1";
 
 const DEMO_SPOT: Spot = { name: "Demo bridge", a: "ASHBYJN", b: "BRAMFD", f: 0.4, aName: "London", bName: "Bramford" };
-const SAVED = "too-too-soon:spot";
 
 interface State {
   spot?: Spot;
@@ -32,26 +32,24 @@ const state: State = { loading: false, editing: false };
 
 // ---- the spot: from the link, or remembered on this phone ----
 
-function readSaved(): Spot | undefined {
+/** localStorage, or nothing when the browser blocks it (private browsing). */
+function storage(): Storage | undefined {
   try {
-    const raw = localStorage.getItem(SAVED);
-    if (!raw) return undefined;
-    const r = parseSpot(new URLSearchParams(raw));
-    return "spot" in r ? r.spot : undefined;
+    return window.localStorage;
   } catch {
     return undefined;
   }
 }
+const recent = (): Spot[] => {
+  const s = storage();
+  return s ? recentSpots(s) : [];
+};
+const readSaved = (): Spot | undefined => recent()[0];
 
 function useSpot(spot: Spot, save = true): void {
   state.spot = spot;
-  if (save && !demo) {
-    try {
-      localStorage.setItem(SAVED, spotParams(spot).toString());
-    } catch {
-      // Private browsing: the link still holds the spot.
-    }
-  }
+  const s = storage();
+  if (save && !demo && s) remember(s, spot);
   const q = spotParams(spot);
   if (demo) q.set("demo", "");
   history.replaceState(null, "", `?${q.toString().replace(/demo=(&|$)/, "demo$1")}`);
@@ -197,6 +195,31 @@ function watchView(spot: Spot, now: number): string {
     </footer>`;
 }
 
+/** The spots remembered on this phone, as drawn: the buttons say which by their place in it. */
+let mine: Spot[] = [];
+
+/** Under a spot's name, where it is, unless the name already says. */
+function whereText(s: Spot): string {
+  const a = s.aName ?? s.a;
+  const where = s.b ? `Between ${a} and ${s.bName ?? s.b}` : a;
+  return where === s.name ? "" : where;
+}
+
+/** Your spots: one tap to watch one again, ✕ to forget it. */
+function yourSpots(): string {
+  mine = recent();
+  if (!mine.length) return "";
+  return `<section class="mine" aria-labelledby="mine-h">
+      <h2 id="mine-h">Your spots</h2>
+      <ul>${mine
+        .map((s, i) => {
+          const where = whereText(s);
+          return `<li><button type="button" class="ghost go-spot" data-i="${i}"><b>${esc(s.name)}</b>${where ? `<small>${esc(where)}</small>` : ""}</button><button type="button" class="ghost icon forget" data-i="${i}" aria-label="Forget ${esc(s.name)}">✕</button></li>`;
+        })
+        .join("")}</ul>
+    </section>`;
+}
+
 function setupView(): string {
   const s = state.spot;
   const d = state.draft;
@@ -205,6 +228,7 @@ function setupView(): string {
   // One place or between two: as the draft (or the map) says, else as the spot is; a new spot starts with one.
   const mode = d?.mode ?? (d?.b || s?.b ? "two" : "one");
   return `<header><h1 class="brand">${logo}${wordmark()}</h1>${s ? `<button type="button" id="cancel" class="ghost">Cancel</button>` : ""}</header>
+    ${yourSpots()}
     <p class="intro">How long till the next too too? Set up where you watch trains from: one station or junction, or a spot between two (a bridge, say). Search by name, or tap it on a map.</p>
     <button type="button" id="pick" class="wide">Pick on a map</button>
     ${state.error ? `<p class="note">${esc(state.error)}</p>` : ""}
@@ -253,6 +277,18 @@ function render(): void {
     render();
   });
   document.getElementById("refresh")?.addEventListener("click", () => void refresh());
+  for (const b of app.querySelectorAll<HTMLButtonElement>(".go-spot"))
+    b.addEventListener("click", () => watch(mine[Number(b.dataset.i)]!));
+  for (const b of app.querySelectorAll<HTMLButtonElement>(".forget"))
+    b.addEventListener("click", () => {
+      const s = storage();
+      if (s) forget(s, mine[Number(b.dataset.i)]!);
+      keepDraft();
+      render();
+      // The redraw drops focus: put it on the next spot's ✕, or the map button when none are left.
+      const left = app.querySelectorAll<HTMLButtonElement>(".forget");
+      (left[Math.min(Number(b.dataset.i), left.length - 1)] ?? app.querySelector<HTMLElement>("#pick"))?.focus();
+    });
   document.getElementById("pick")?.addEventListener("click", () => void pick());
   document.getElementById("swap")?.addEventListener("click", () => {
     const form = document.getElementById("setup") as HTMLFormElement;
@@ -310,14 +346,25 @@ function render(): void {
         state.draft = Object.fromEntries([...fd].map(([k, x]) => [k, String(x)]));
         return render();
       }
-      state.draft = undefined;
-      state.editing = false;
-      state.data = undefined;
-      state.error = undefined;
-      useSpot(r.spot);
-      void refresh();
+      watch(r.spot);
     });
   }
+}
+
+/** Off the set-up form to watch a spot. */
+function watch(spot: Spot): void {
+  state.draft = undefined;
+  state.editing = false;
+  state.data = undefined;
+  state.error = undefined;
+  useSpot(spot);
+  void refresh();
+}
+
+/** What the set-up form holds, so a redraw (or the map) comes back to it. */
+function keepDraft(): void {
+  const form = document.getElementById("setup") as HTMLFormElement | null;
+  if (form) state.draft = Object.fromEntries([...new FormData(form)].map(([k, x]) => [k, String(x)]));
 }
 
 // The countdown ticks every second without asking anyone, and the list's "in N min" every 30.
@@ -337,8 +384,7 @@ window.setInterval(() => {
 
 async function pick(): Promise<void> {
   // Keep what's typed, so Cancel (or a pick) comes back to it.
-  const form = document.getElementById("setup") as HTMLFormElement | null;
-  if (form) state.draft = Object.fromEntries([...new FormData(form)].map(([k, x]) => [k, String(x)]));
+  keepDraft();
   const name = (state.draft?.name ?? "").trim();
   state.picking = true;
   app.innerHTML = `<p class="hint">Loading the map…</p>`;
