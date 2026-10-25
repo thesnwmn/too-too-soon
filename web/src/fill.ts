@@ -29,15 +29,25 @@ const roadKey = (a: string, b: string, f: string | number) => {
   return a < b ? `${a}|${b}|${x}` : `${b}|${a}|${100 - x}`;
 };
 
+/** How far (in %) the slider can be nudged off the tap with the road's name kept: fine-tuning, not moving. */
+const NUDGE = 5;
+
+/** Whether the form's A, B and slider are still the spot the road was found for, give or take a nudge. */
+function atRoad(d: Draft): boolean {
+  const [ra, rb, rx] = (d.rfor ?? "").split("|");
+  const [a, b, x] = roadKey(d.a ?? "", d.b ?? "", d.f ?? "").split("|");
+  return ra === a && rb === b && Math.abs(Number(rx) - Number(x)) <= NUDGE;
+}
+
 /**
  * The name a spot is given until you type your own: one place, its name; between two, the road
- * at the tap while A, B and the slider are where the tap put them, else "Between A and B". Empty
+ * at the tap while A, B and the slider are where the tap put them (give or take a nudge), else "Between A and B". Empty
  * while the places aren't picked yet.
  */
 export function autoName(d: Draft | undefined): string {
   if (!d) return "";
   if (d.mode !== "two") return d.an ?? "";
-  if (d.rn && d.rfor === roadKey(d.a ?? "", d.b ?? "", d.f ?? "")) return d.rn;
+  if (d.rn && atRoad(d)) return d.rn;
   return d.an && d.bn ? `Between ${d.an} and ${d.bn}` : "";
 }
 

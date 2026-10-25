@@ -3,7 +3,7 @@ title: The spot's name fills itself in as you pick, from the place or the road a
 kind: build
 role: engineer
 size: M
-status: doing
+status: trial
 pr: 37
 milestone: m1-first-trains
 ---
@@ -24,3 +24,4 @@ Asking a geocoder or Overpass for the name; renaming saved spots; naming after l
 
 ## Log
 - 2026-10-25 shaped by the Director from the producer's /director, who chose filling the box as you pick and the road at the map tap (over "near X" or keeping "Between X and Y").
+- 2026-10-25 built (#37, [session](../sessions/2026-10-25-1440-auto-name.md)): `autoName` in `web/src/fill.ts`, `nameAtTrack` in `packages/core/src/naming.ts`, `nameOnTiles` in `web/src/track.ts`. The road's name holds while the slider is nudged up to 5% (the Tester found a 1% nudge dropping it). Tester: every item holds at 390×844 and 360×640, the map tap on made-up tiles; OpenFreeMap's real tiles weren't reachable from here, so the tap at Brookwood–Woking is for the producer. On trial.

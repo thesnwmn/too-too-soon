@@ -39,9 +39,10 @@ describe("auto-name", () => {
     expect(tapDraft(undefined, { ...tap, road: undefined }).name).toBe("Between Woking and Brookwood");
   });
 
-  it("the road holds through Swap, and gives way when the places or the slider move", () => {
+  it("the road holds through Swap and a nudge of the slider, and gives way when the places or the slider move", () => {
     const d = tapDraft(undefined, tap);
     expect(autoName({ ...d, a: "BKO", b: "WOK", an: "Brookwood", bn: "Woking", f: "0.7" })).toBe("Hermitage Road bridge");
+    expect(autoName({ ...d, f: "0.32" })).toBe("Hermitage Road bridge");
     expect(autoName({ ...d, f: "0.6" })).toBe("Between Woking and Brookwood");
     expect(autoName({ ...d, b: "WOKINGJ", bn: "Woking Jn" })).toBe("Between Woking and Woking Jn");
     expect(autoName({ ...d, mode: "one" })).toBe("Woking");
