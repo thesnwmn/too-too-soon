@@ -64,9 +64,12 @@ What only you can do, about 20 minutes in all. It's [an ask](asks/one-time-setup
    - **Account ID:** on the dashboard's *Workers & Pages* overview, right-hand side.
    - **API token:** *My Profile → API Tokens → Create Token → "Edit Cloudflare Workers" template → Continue → Create*. Copy it.
    - Open *Workers & Pages* once, so Cloudflare asks you to pick your `workers.dev` subdomain.
-3. **GitHub secrets.** In this repo, *Settings → Secrets and variables → Actions → New repository secret*, add:
+3. **GitHub secrets**, in an environment only `main` may use, so a workflow on any other branch can't read them. In this repo, *Settings → Environments → New environment* `production`; under *Deployment branches and tags*, *Selected branches and tags*, add `main`. Then add its *Environment secrets*:
    - `RTT_TOKEN`: the Realtime Trains token;
-   - `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
+   - `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`;
+   - `SITE_URL`: the site's address, once the first deploy has made it (`https://too-too-soon.<your-subdomain>.workers.dev`), for the probe. The repo is public, so the address is kept out of it and masked in the Actions logs.
+
+   None of them as *repository* secrets: those reach every branch. The health check (`code/workflows`) fails on a workflow that uses a secret outside the `production` environment.
 4. **GitHub Pages**, for the demo build: *Settings → Pages → Build and deployment → Source: GitHub Actions*.
 5. **Squash merge only**, if you haven't: *Settings → General → Pull Requests*: allow squash merging only. And in your `main` ruleset, require the `check` and `pr-title` status checks once they've run on a PR.
 

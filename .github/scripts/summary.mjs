@@ -4,7 +4,8 @@ import { appendFileSync } from "node:fs";
 
 const url = process.env.URL ?? "";
 const hasRtt = process.env.HAS_RTT === "true";
-const out = ["## Deployed", "", `**Site:** ${url || "see the deploy step's log"}`, ""];
+// The repo's logs are public, so the address stays out of them: it's the SITE_URL secret.
+const out = ["## Deployed", "", `**Site:** ${url ? "deployed to its workers.dev address (the `SITE_URL` secret)" : "no workers.dev address in wrangler's output"}`, ""];
 
 if (!hasRtt) out.push("No `RTT_TOKEN` secret yet, so the site has no live data. See studio/producer-guide.md#one-time-setup.");
 else if (url) {
