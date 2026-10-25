@@ -4,6 +4,7 @@ kind: build
 role: engineer
 size: M
 status: doing
+pr: 35
 milestone: m1-first-trains
 needs: [places, one-point, find-on-map]
 ---
@@ -23,4 +24,4 @@ Our own tile server or a bundled track map of Britain.
 ## Log
 - 2026-10-24 shaped by the Director from #21. Start with a spike: does OpenFreeMap's `liberty` style carry rail lines and station names at zoom 14 to 16 around Woking?
 - 2026-10-25 `find-on-map` (the producer's /director) picks single points from our own file, with no Overpass. Once it lands, this unit is only the track tap for a spot between two: re-shape it then, perhaps as tapping between two dots.
-- 2026-10-25 re-shaped by the Director on `/go map picker offline`: the timing points come from our dots rather than the tiles' station names (the dots already have codes and places, so no name matching), and the tap on a dot is done by `find-on-map`. Started, #PR.
+- 2026-10-25 re-shaped by the Director on `/go map picker offline`: the timing points come from our dots rather than the tiles' station names (the dots already have codes and places, so no name matching), and the tap on a dot is done by `find-on-map`. Started, #35.
