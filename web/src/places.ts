@@ -73,6 +73,8 @@ export function wirePlaceField(form: HTMLFormElement, k: "a" | "b"): void {
     chosen.textContent = p.code;
     dismissed = true;
     close();
+    // The form listens for a place changing (auto-name), as it would for typing.
+    box.dispatchEvent(new Event("change", { bubbles: true }));
   };
   box.addEventListener("focus", () => void loadPlaces());
   box.addEventListener("input", async () => {

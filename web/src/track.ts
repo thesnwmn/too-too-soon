@@ -1,11 +1,12 @@
 // The track under a tap on Pick on a map (picker-offline), from the map's own vector tiles: the
 // same tiles MapLibre downloads to draw the map (so the ones in view come from the browser's
 // cache), decoded here for their rail lines, and our dots as the timing points. More tiles are
-// fetched along the line while the walk runs off the edge of those it has. Only the picker loads
-// this (code/map-lazy).
+// fetched along the line while the walk runs off the edge of those it has. And the road that
+// crosses the line at the spot, to name it after (auto-name). Only the picker loads this
+// (code/map-lazy).
 import { VectorTile } from "@mapbox/vector-tile";
 import { PbfReader } from "pbf";
-import { dotNodes, fromTrack, isRunningLine, type LatLon, type Located, locate, type MapPoint, type Tile, TILE_ZOOM, tileKey, tilesAhead, tilesAround, tracksFromLines } from "@too-too-soon/core";
+import { dotNodes, fromTrack, isRunningLine, type LatLon, type Located, locate, type MapPoint, NAME_REACH_M, nameAtTrack, type NamedLine, type Tile, TILE_ZOOM, tileKey, tilesAhead, tilesAround, tracksFromLines } from "@too-too-soon/core";
 
 /** Where the tiles are: the map's vector source's URL template (`{z}/{x}/{y}`) and its top zoom. */
 export interface TileSource {
@@ -19,35 +20,87 @@ const FIRST_M = 1500;
 const MAX_TILES = 40;
 const MORE = 8;
 
-/** A tile's running lines, in degrees. An empty list for a tile that isn't there (the sea). */
-async function railIn(src: TileSource, t: Tile, signal: AbortSignal): Promise<LatLon[][]> {
+/** A tile's bytes: undefined for a tile that isn't there (the sea). */
+async function tileBytes(src: TileSource, t: Tile, signal: AbortSignal): Promise<ArrayBuffer | undefined> {
   const url = src.template.replace("{z}", String(t.z)).replace("{x}", String(t.x)).replace("{y}", String(t.y));
   const r = await fetch(url, { signal });
-  if (r.status === 404 || r.status === 204) return [];
+  if (r.status === 404 || r.status === 204) return undefined;
   if (!r.ok) throw new Error(`The map's tiles answered ${r.status}`);
-  return railLines(await r.arrayBuffer(), t);
+  return r.arrayBuffer();
 }
 
-/** The running lines in one tile (OpenMapTiles' `transportation` layer), in degrees. */
-export function railLines(buf: ArrayBuffer, t: Tile): LatLon[][] {
-  const layer = new VectorTile(new PbfReader(buf)).layers.transportation;
+/** A tile's running lines, in degrees. An empty list for a tile that isn't there. */
+async function railIn(src: TileSource, t: Tile, signal: AbortSignal): Promise<LatLon[][]> {
+  const buf = await tileBytes(src, t, signal);
+  return buf ? railLines(buf, t) : [];
+}
+
+/** Each line in a tile's layer that `keep` keeps, with its properties, in degrees. */
+function linesIn(buf: ArrayBuffer, t: Tile, layerName: string, keep: (props: Record<string, unknown>) => boolean): { props: Record<string, unknown>; points: LatLon[] }[] {
+  const layer = new VectorTile(new PbfReader(buf)).layers[layerName];
   if (!layer) return [];
   const n = 2 ** t.z;
-  const out: LatLon[][] = [];
+  const out: { props: Record<string, unknown>; points: LatLon[] }[] = [];
   for (let i = 0; i < layer.length; i++) {
     const f = layer.feature(i);
-    if (f.type !== 2 || !isRunningLine(f.properties)) continue;
+    if (f.type !== 2 || !keep(f.properties)) continue;
     for (const ring of f.loadGeometry()) {
-      out.push(
-        ring.map((p) => {
+      out.push({
+        props: f.properties,
+        points: ring.map((p) => {
           const wx = (t.x + p.x / layer.extent) / n;
           const wy = (t.y + p.y / layer.extent) / n;
           return { lat: (Math.atan(Math.sinh(Math.PI * (1 - 2 * wy))) * 180) / Math.PI, lon: wx * 360 - 180 };
         }),
-      );
+      });
     }
   }
   return out;
+}
+
+/** The running lines in one tile (OpenMapTiles' `transportation` layer), in degrees. */
+export function railLines(buf: ArrayBuffer, t: Tile): LatLon[][] {
+  return linesIn(buf, t, "transportation", isRunningLine).map((l) => l.points);
+}
+
+/**
+ * The named roads and paths in one tile (`transportation_name`, not rail), and the other lines
+ * marked as bridges (`transportation`, `brunnel=bridge`, not rail), for nameAtTrack.
+ */
+export function roadLines(buf: ArrayBuffer, t: Tile): { roads: NamedLine[]; bridges: LatLon[][] } {
+  const notRail = (p: Record<string, unknown>) => !["rail", "transit"].includes(String(p.class));
+  const roads = linesIn(buf, t, "transportation_name", (p) => notRail(p) && typeof p.name === "string" && p.name !== "").map((l) => ({
+    name: String(l.props.name),
+    points: l.points,
+    brunnel: typeof l.props.brunnel === "string" ? l.props.brunnel : undefined,
+  }));
+  const bridges = linesIn(buf, t, "transportation", (p) => notRail(p) && p.brunnel === "bridge").map((l) => l.points);
+  return { roads, bridges };
+}
+
+/**
+ * A name for the spot at `at` on the track (auto-name): the road or path that crosses the line
+ * there, from the same tiles. Undefined when none does, or the tiles can't be had: a name is
+ * never worth failing the pick for.
+ */
+export async function nameOnTiles(src: TileSource, at: LatLon, signal: AbortSignal): Promise<string | undefined> {
+  try {
+    const tiles = tilesAround(at, NAME_REACH_M, Math.min(src.maxzoom, TILE_ZOOM));
+    const bufs = await Promise.all(tiles.map((t) => tileBytes(src, t, signal)));
+    const track: LatLon[][] = [];
+    const roads: NamedLine[] = [];
+    const bridges: LatLon[][] = [];
+    bufs.forEach((buf, i) => {
+      if (!buf) return;
+      track.push(...railLines(buf, tiles[i]));
+      const r = roadLines(buf, tiles[i]);
+      roads.push(...r.roads);
+      bridges.push(...r.bridges);
+    });
+    return nameAtTrack(at, track, roads, bridges);
+  } catch {
+    return undefined;
+  }
 }
 
 /**

@@ -1,7 +1,7 @@
 import { type MapPoint, type Tile, tileKey, tileOf } from "@too-too-soon/core";
 import { PbfWriter } from "pbf";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { findOnTiles, railLines } from "../src/track.ts";
+import { findOnTiles, nameOnTiles, railLines, roadLines } from "../src/track.ts";
 
 const EXTENT = 4096;
 const n = 2 ** 14;
@@ -13,14 +13,14 @@ const inTile = (t: Tile, p: { lat: number; lon: number }) => {
   return [Math.round((wx - t.x) * EXTENT), Math.round((wy - t.y) * EXTENT)];
 };
 
-/** A vector tile with a `transportation` layer of these lines, as OpenMapTiles writes them. */
-function tile(t: Tile, lines: { props: Record<string, string>; points: { lat: number; lon: number }[] }[]): ArrayBuffer {
+/** A vector tile with a `transportation` layer (or `layer`) of these lines, as OpenMapTiles writes them. */
+function tile(t: Tile, lines: { props: Record<string, string>; points: { lat: number; lon: number }[] }[], layer = "transportation"): ArrayBuffer {
   const keys: string[] = [];
   const values: string[] = [];
   const pbf = new PbfWriter();
   pbf.writeMessage(3, (_: unknown, w: PbfWriter) => {
     w.writeVarintField(15, 2);
-    w.writeStringField(1, "transportation");
+    w.writeStringField(1, layer);
     for (const l of lines) {
       w.writeMessage(2, (_: unknown, f: PbfWriter) => {
         const tags = Object.entries(l.props).flatMap(([k, v]) => {
@@ -145,3 +145,42 @@ describe("findOnTiles", () => {
   });
 });
 
+/** Two layers in one tile: a tile's layers are just one after another. */
+const both = (a: ArrayBuffer, b: ArrayBuffer) => {
+  const out = new Uint8Array(a.byteLength + b.byteLength);
+  out.set(new Uint8Array(a), 0);
+  out.set(new Uint8Array(b), a.byteLength);
+  return out.buffer;
+};
+
+describe("nameOnTiles", () => {
+  const t = tileOf(woking);
+  /** A road north–south across the line, about `km` east of Woking. */
+  const road = (km: number) => [{ lat: woking.lat - 0.001, lon: east(km).lon }, { lat: woking.lat + 0.001, lon: east(km).lon }];
+  const rail = { props: RAIL, points: [east(-0.3), east(0.3)] };
+  const named = (props: Record<string, string>, km = 0.05) => tile(t, [{ props, points: road(km) }], "transportation_name");
+
+  it("names the spot after the road crossing the line there, a bridge from the unnamed lines", async () => {
+    const buf = both(tile(t, [rail, { props: { class: "minor", brunnel: "bridge" }, points: road(0.05) }]), named({ class: "minor", name: "Hermitage Road" }));
+    expect(roadLines(buf, t).roads.map((r) => r.name)).toEqual(["Hermitage Road"]);
+    serve(new Map([[tileKey(t), buf]]));
+    expect(await nameOnTiles(src, woking, new AbortController().signal)).toBe("Hermitage Road bridge");
+  });
+
+  it("a level crossing or a road under the line is just the road", async () => {
+    serve(new Map([[tileKey(t), both(tile(t, [rail]), named({ class: "minor", name: "Station Road" }))]]));
+    expect(await nameOnTiles(src, woking, new AbortController().signal)).toBe("Station Road");
+  });
+
+  it("nothing named across the line within reach: no name, and the railway's own name doesn't count", async () => {
+    serve(new Map([[tileKey(t), both(tile(t, [rail]), both(named({ class: "minor", name: "Far Lane" }, 0.25), tile(t, [{ props: { class: "rail", name: "South Western Main Line" }, points: [east(-0.3), east(0.3)] }], "transportation_name")))]]));
+    expect(await nameOnTiles(src, woking, new AbortController().signal)).toBeUndefined();
+  });
+
+  it("no tiles (no signal): no name, and no error", async () => {
+    vi.stubGlobal("fetch", async () => {
+      throw new TypeError("offline");
+    });
+    expect(await nameOnTiles(src, woking, new AbortController().signal)).toBeUndefined();
+  });
+});
