@@ -51,7 +51,7 @@ jobs:
         env:
           SAMPLE: ${{ inputs.sample }}
           RTT_TOKEN: ${{ secrets.RTT_TOKEN }}
-      # `places`: build the set-up form's place list as the deploy does, and try a few searches.
+      # `places`: build the set-up form's place list and the stations' points as the deploy does, and try a few searches.
       - if: inputs.sample == 'places'
         env:
           RTT_TOKEN: ${{ secrets.RTT_TOKEN }}
@@ -64,3 +64,4 @@ jobs:
             for (const q of ["wok", "brookwood", "clapham j", "st albans", "WOKINGJ", "basingstoke"]) console.log(q, "→", searchPlaces(p, q, 6).map((x) => `${x.name} (${x.code}${x.station ? "" : ", timing point"})`).join("; "));
           '
           gzip -c /tmp/places.json | wc -c | xargs -I{} echo "gzipped: {} bytes"
+          if [ -f /tmp/points.json ]; then gzip -c /tmp/points.json | wc -c | xargs -I{} echo "points gzipped: {} bytes"; fi
