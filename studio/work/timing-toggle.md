@@ -24,3 +24,4 @@ Moving the points to better places (a better source than BPLAN, or snapping them
 
 ## Log
 - 2026-10-25 shaped by the Director from the producer's /director. Defaults the producer can change: the switch's name, and remembering it once turned on.
+- 2026-10-25 a call the producer can overturn: when a box, or the spot being watched, already holds a junction or other timing point, the map shows them for that visit (the switch shows on, not remembered), so it doesn't open on a place with no dot.

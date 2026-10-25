@@ -23,3 +23,19 @@ export function setOthersOn(s: Store | undefined, on: boolean): void {
     // Blocked storage: the switch still works until the map closes.
   }
 }
+
+/** The dots split for the map: the stations, always shown, and the others, behind the switch. */
+export function splitDots<T extends { kind: string }>(dots: T[]): { stations: T[]; others: T[] } {
+  return { stations: dots.filter((d) => d.kind === "station"), others: dots.filter((d) => d.kind !== "station") };
+}
+
+/**
+ * Whether to show the others for this visit though the switch is off: when a box, or the spot
+ * being watched, holds one of them, so the map doesn't open on (or leave out) a place with no dot.
+ */
+export function othersNeeded(kindOf: (code: string) => string | undefined, codes: (string | undefined)[]): boolean {
+  return codes.some((c) => {
+    const k = c ? kindOf(c) : undefined;
+    return k !== undefined && k !== "station";
+  });
+}

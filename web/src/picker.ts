@@ -1,7 +1,8 @@
 // The map picker: tap the railway where you watch from, and it finds the timing points either
 // side (packages/core locate) from OpenStreetMap, asked through the Worker's /api/osm. And the
-// dots (find-on-map): every station and timing point from points.json, which a tap shows on a
-// card, to fill a box on the set-up form; "Find on map" opens it for one box. Loaded only when
+// dots (find-on-map): every station from points.json, and the other timing points behind a
+// switch (timing-toggle), which a tap shows on a card, to fill a box on the set-up form; "Find on
+// map" opens it for one box. Loaded only when
 // the set-up asks for it, so the watch view stays small.
 import * as maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
@@ -11,7 +12,7 @@ import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import { codeLabel, KIND_TEXT, type Located, locate, type MapPoint, mapCentre, type OsmElement, overpassQuery, pointsGeoJson } from "@too-too-soon/core";
 import type { Filled } from "./fill.ts";
 import { loadMapPoints } from "./points.ts";
-import { othersOn, setOthersOn } from "./toggle.ts";
+import { othersNeeded, othersOn, setOthersOn, splitDots } from "./toggle.ts";
 
 /** localStorage, or nothing when the browser blocks it (private browsing). */
 function storage(): Storage | undefined {
@@ -161,8 +162,9 @@ export function openPicker(root: HTMLElement, opts: PickerOptions, done: (result
       map.addLayer({ id: `${set}-names`, type: "symbol", source: set, filter: ["!", ["has", "point_count"]], minzoom: 12, layout: { visibility, "text-field": ["get", "name"], "text-font": ["Noto Sans Regular"], "text-size": 12, "text-offset": [0, 0.9], "text-anchor": "top", "text-optional": true }, paint: { "text-color": "#0f172a", "text-halo-color": "#ffffff", "text-halo-width": 1.5 } });
     };
     const showOthers = othersOn(storage());
-    addSet("stations", dots.filter((d) => d.kind === "station"), CREDIT_STATIONS, true);
-    addSet("others", dots.filter((d) => d.kind !== "station"), CREDIT_OTHERS, showOthers);
+    const { stations, others } = splitDots(dots);
+    addSet("stations", stations, CREDIT_STATIONS, true);
+    addSet("others", others, CREDIT_OTHERS, showOthers);
     toggle.checked = showOthers;
     toggle.closest("label")!.hidden = false;
     byCode = new Map(dots.map((d) => [d.code, d]));
@@ -171,8 +173,8 @@ export function openPicker(root: HTMLElement, opts: PickerOptions, done: (result
     if (centre) map.jumpTo({ center: [centre.lon, centre.lat], zoom: 13 });
     else void nearMeIfAllowed();
     status.textContent = finding ? "Tap a dot to see what it is, then Use this." : "Tap a dot to use it, or zoom in to where you watch from and tap the track.";
-    // A box already holding a junction: show the others, so its dot is there (this time only).
-    if (!showOthers && [opts.a, opts.b].some((c) => c && byCode.get(c) && byCode.get(c)!.kind !== "station")) {
+    // A box (or the spot) already holding a junction: show the others, so its dot is there (this visit only).
+    if (!showOthers && othersNeeded((c) => byCode.get(c)?.kind, [opts.a, opts.b, opts.spotA, opts.spotB])) {
       toggle.checked = true;
       for (const id of ["others-clusters", "others-count", "others", "others-names"]) map.setLayoutProperty(id, "visibility", "visible");
     }
