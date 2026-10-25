@@ -3,6 +3,7 @@
 import { withDemoClasses, demoLineUps, type ErrorResponse, type NextResponse, parseSpot, type Pass, predictAt, predictPasses, type Spot, spotParams, upcoming } from "@too-too-soon/core";
 import { logo, wordmark } from "./brand.ts";
 import { loadPlaces, placeField, resolvePlace, wirePlaceField } from "./places.ts";
+import { fillDraft } from "./fill.ts";
 import { forget, recentSpots, remember } from "./recent.ts";
 import { about, clock, towardsText, countdown, direction, inMinutes, refreshAfter, stopping, sureness, what } from "./format.ts";
 
@@ -290,6 +291,7 @@ function render(): void {
       (left[Math.min(Number(b.dataset.i), left.length - 1)] ?? app.querySelector<HTMLElement>("#pick"))?.focus();
     });
   document.getElementById("pick")?.addEventListener("click", () => void pick());
+  for (const b of app.querySelectorAll<HTMLButtonElement>(".find")) b.addEventListener("click", () => void pick(b.dataset.box as "a" | "b"));
   document.getElementById("swap")?.addEventListener("click", () => {
     const form = document.getElementById("setup") as HTMLFormElement;
     const field = (n: string) => form.elements.namedItem(n) as HTMLInputElement;
@@ -382,21 +384,31 @@ window.setInterval(() => {
 
 // ---- the map picker, loaded only when it's wanted ----
 
-async function pick(): Promise<void> {
+/** The map: "Pick on a map" (no box), or "Find on map" for box A or B. */
+async function pick(box?: "a" | "b"): Promise<void> {
   // Keep what's typed, so Cancel (or a pick) comes back to it.
   keepDraft();
-  const name = (state.draft?.name ?? "").trim();
+  const d = state.draft ?? {};
+  const name = (d.name ?? "").trim();
+  const two = d.mode === "two";
+  const label = box === "b" ? "timing point B" : two ? "timing point A" : "a station or junction";
   state.picking = true;
   app.innerHTML = `<p class="hint">Loading the map…</p>`;
   try {
     const { openPicker } = await import("./picker.ts");
-    openPicker(app, (picked) => {
+    openPicker(app, { box, label, a: d.a, b: two ? d.b : undefined, spotA: state.spot?.a, spotB: state.spot?.b }, (picked) => {
       state.picking = false;
-      if (picked) {
+      if (picked && "f" in picked) {
         state.error = undefined;
         state.draft = { ...state.draft, name: name || `Between ${picked.aName} and ${picked.bName}`, a: picked.a, b: picked.b, f: String(picked.f), an: picked.aName, bn: picked.bName, aq: picked.aName, bq: picked.bName, mode: "two" };
+      } else if (picked) {
+        // A dot fills its box, as picking it from the search does; the card may also say one place or two.
+        state.error = undefined;
+        state.draft = fillDraft(state.draft, picked);
       }
       render();
+      // Back on the form: focus where the map was opened from, so a keyboard or screen reader carries on there.
+      (box ? app.querySelector<HTMLElement>(`#${box}q`) : app.querySelector<HTMLElement>("#pick"))?.focus();
     });
   } catch {
     state.picking = false;

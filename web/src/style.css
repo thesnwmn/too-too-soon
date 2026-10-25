@@ -146,7 +146,9 @@ form .two-only:not(span) { display: grid; gap: 14px; }
 form[data-mode="one"] div.two-only { display: none; }
 /* A place search box (src/places.ts): the suggestions open under it, over what follows. */
 .place { position: relative; display: grid; gap: 4px; }
-.place > label { font-weight: 600; }
+.place > label, .place-head label { font-weight: 600; }
+.place-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.place-head .find { min-height: 44px; padding: 6px 12px; font-size: 0.9rem; }
 .place .chosen { color: var(--muted); font-size: 0.85rem; min-height: 1.2em; }
 .suggest {
   position: absolute;
@@ -192,9 +194,39 @@ button.wide { width: 100%; margin: 4px 0 8px; }
 body.picking { overflow: hidden; }
 body.picking main { height: 100vh; height: 100dvh; display: flex; flex-direction: column; padding-bottom: max(12px, env(safe-area-inset-bottom)); }
 body.picking header { flex: none; }
+.map-wrap { flex: 1; min-height: 200px; position: relative; display: flex; }
 .map { flex: 1; min-height: 200px; border-radius: 16px; overflow: hidden; border: 2px solid var(--line); }
+/* A dot's card (find-on-map): over the foot of the map, so the screen still doesn't scroll. */
+.pick-card {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+  z-index: 3;
+  max-height: calc(100% - 16px);
+  overflow: auto;
+  background: var(--card);
+  color: var(--ink);
+  border: 2px solid var(--line);
+  border-radius: 14px;
+  padding: 12px 14px;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.25);
+}
+.pick-card h2 { font-size: 1.15rem; margin: 0 44px 4px 0; overflow-wrap: anywhere; }
+.pick-card .card-what { margin: 0 0 10px; color: var(--muted); }
+.pick-card .card-what b { color: var(--ink); letter-spacing: 0.04em; }
+.pick-card .card-close { position: absolute; top: 8px; right: 8px; min-width: 44px; }
+.card-uses { display: flex; flex-wrap: wrap; gap: 8px; }
+.card-uses button { flex: 1 1 auto; }
+.kind { font-weight: 600; }
+.kind-station { color: var(--brand-ink); }
+.kind-junction { color: #b45309; }
+.kind-other { color: var(--muted); }
+@media (prefers-color-scheme: dark) { .kind-junction { color: #fb923c; } }
 body.picking .note { flex: none; margin: 10px 0; }
 .pick-actions { flex: none; display: flex; gap: 10px; }
 .pick-actions button:last-child { flex: 1; }
 button.icon { padding: 8px 12px; display: inline-flex; align-items: center; justify-content: center; }
 .map-label { background: var(--accent); color: var(--smoke); font: 600 13px/1.2 system-ui, sans-serif; padding: 4px 8px; border-radius: 8px; white-space: nowrap; box-shadow: 0 1px 3px rgb(0 0 0 / 0.3); }
+/* Something hidden stays hidden, whatever its display (the picker's copy button on Find on map). */
+[hidden] { display: none !important; }

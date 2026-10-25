@@ -1,17 +1,20 @@
 // The set-up form's place search: type a station or junction's name, pick it, and its code and
 // name go in the form's hidden fields. The list (places.json, made at deploy time from RTT's own)
 // is fetched once, the first time a search box is used, and searched here: nothing per keystroke.
+// On the demo on Pages it's a small sample around Woking (web/demo/), so only those are offered.
 import { type Place, placeFor, type Places, searchPlaces } from "@too-too-soon/core";
+import { keptJson } from "./kept.ts";
 
 let list: Promise<Places | undefined> | undefined;
 
 /** The place list, or undefined where there isn't one (the demo on Pages, a deploy that couldn't ask RTT). A download that failed is tried again next time. */
 export function loadPlaces(): Promise<Places | undefined> {
-  list ??= fetch("places.json")
-    .then((r) => (r.ok && (r.headers.get("Content-Type") ?? "").includes("json") ? (r.json() as Promise<Places>) : undefined))
-    .catch(() => {
-      list = undefined;
-      return undefined;
+  // Kept on the phone (kept.ts), so the search and the map's dots work with a weak signal.
+  list ??= keptJson<Places>("places.json")
+    .catch(() => undefined)
+    .then((p) => {
+      if (!p) list = undefined;
+      return p;
     });
   return list;
 }
@@ -22,7 +25,7 @@ const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`)
 export function placeField(k: "a" | "b", labelHtml: string, values: { q?: string; code?: string; name?: string }): string {
   const shown = values.q ?? values.name ?? values.code ?? "";
   return `<div class="place">
-      <label for="${k}q">${labelHtml}</label>
+      <div class="place-head"><label for="${k}q">${labelHtml}</label><button type="button" class="ghost find" data-box="${k}" aria-describedby="${k}q">Find on map</button></div>
       <input id="${k}q" name="${k}q" value="${esc(shown)}" placeholder="Search: a station or junction" autocomplete="off" autocapitalize="words" spellcheck="false"
         role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="${k}-list">
       <input type="hidden" name="${k}" value="${esc(values.code ?? "")}">
