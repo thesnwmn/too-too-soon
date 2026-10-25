@@ -3,7 +3,7 @@ title: The map shows stations only, with a switch for the other timing points
 kind: build
 role: engineer
 size: S
-status: ready
+status: doing
 milestone: m1-first-trains
 ---
 
