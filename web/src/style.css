@@ -196,6 +196,10 @@ body.picking main { height: 100vh; height: 100dvh; display: flex; flex-direction
 body.picking header { flex: none; }
 .map-wrap { flex: 1; min-height: 200px; position: relative; display: flex; }
 .map { flex: 1; min-height: 200px; border-radius: 16px; overflow: hidden; border: 2px solid var(--line); }
+/* The switch for junctions and timing points (timing-toggle), over the top of the map. */
+.map-switch { position: absolute; top: 8px; left: 8px; z-index: 2; display: flex; align-items: center; gap: 8px; background: var(--card); color: var(--ink); border: 2px solid var(--line); border-radius: 12px; padding: 6px 12px; min-height: 44px; font-size: 0.9rem; font-weight: 600; box-shadow: 0 2px 8px rgb(0 0 0 / 0.15); }
+.map-switch input { width: 20px; height: 20px; min-height: 0; margin: 0; accent-color: var(--brand-ink); }
+.pick-card .card-approx { margin: -6px 0 10px; color: var(--muted); font-size: 0.85rem; }
 /* A dot's card (find-on-map): over the foot of the map, so the screen still doesn't scroll. */
 .pick-card {
   position: absolute;

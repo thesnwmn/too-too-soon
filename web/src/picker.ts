@@ -1,7 +1,8 @@
 // The map picker: tap the railway where you watch from, and it finds the timing points either
 // side (packages/core locate) from OpenStreetMap, asked through the Worker's /api/osm. And the
-// dots (find-on-map): every station and timing point from points.json, which a tap shows on a
-// card, to fill a box on the set-up form; "Find on map" opens it for one box. Loaded only when
+// dots (find-on-map): every station from points.json, and the other timing points behind a
+// switch (timing-toggle), which a tap shows on a card, to fill a box on the set-up form; "Find on
+// map" opens it for one box. Loaded only when
 // the set-up asks for it, so the watch view stays small.
 import * as maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
@@ -11,6 +12,16 @@ import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import { codeLabel, KIND_TEXT, type Located, locate, type MapPoint, mapCentre, type OsmElement, overpassQuery, pointsGeoJson } from "@too-too-soon/core";
 import type { Filled } from "./fill.ts";
 import { loadMapPoints } from "./points.ts";
+import { othersNeeded, othersOn, setOthersOn, splitDots } from "./toggle.ts";
+
+/** localStorage, or nothing when the browser blocks it (private browsing). */
+function storage(): Storage | undefined {
+  try {
+    return window.localStorage;
+  } catch {
+    return undefined;
+  }
+}
 
 maplibregl.setWorkerUrl(workerUrl);
 
@@ -42,12 +53,14 @@ export interface PickerOptions {
   spotB?: string;
 }
 
-/** The dots' credits, beside OpenStreetMap's: the Open Government Licence's own words for NaPTAN's stations and Network Rail's timing points, and Realtime Trains for their names. */
-const CREDITS = [
-  "Contains public sector information licensed under the Open Government Licence v3.0",
-  "Contains information of Network Rail Infrastructure Limited licensed under the Open Government Licence v3.0",
-  "Names: Realtime Trains",
-];
+/**
+ * The dots' credits, beside OpenStreetMap's, in the Open Government Licence's own words: NaPTAN's
+ * for the stations, Network Rail's for the other timing points (shown only while they are, as
+ * their source's credit), and Realtime Trains for the names.
+ */
+const CREDIT_STATIONS = "Contains public sector information licensed under the Open Government Licence v3.0";
+const CREDIT_OTHERS = "Contains information of Network Rail Infrastructure Limited licensed under the Open Government Licence v3.0";
+const CREDIT_NAMES = "Names: Realtime Trains";
 const KIND_COLOUR = { station: "#124a28", junction: "#b45309", other: "#64748b" };
 
 async function ask(lat: number, lon: number, radius: number, signal: AbortSignal): Promise<OsmElement[]> {
@@ -82,6 +95,7 @@ export function openPicker(root: HTMLElement, opts: PickerOptions, done: (result
   document.body.classList.add("picking");
   root.innerHTML = `<header><h1>${finding ? `Find ${esc(opts.label ?? "a place")}` : "Tap the railway"}</h1><button type="button" id="pick-cancel" class="ghost">Cancel</button></header>
     <div class="map-wrap"><div id="map" class="map"></div>
+      <label class="map-switch" hidden><input type="checkbox" id="pick-others"> Junctions and timing points</label>
       <div id="pick-card" class="pick-card" role="dialog" aria-labelledby="card-name" hidden></div></div>
     <p id="pick-status" class="note" aria-live="polite">${finding ? "Loading the stations and timing points…" : "Tap a dot to use it, or zoom in to where you watch from and tap the track."}</p>
     <div class="pick-actions">
@@ -110,7 +124,7 @@ export function openPicker(root: HTMLElement, opts: PickerOptions, done: (result
   const use = root.querySelector<HTMLButtonElement>("#pick-use") ?? document.createElement("button");
   let byCode = new Map<string, MapPoint>();
   let closed = false;
-  const map = new maplibregl.Map({ container: "map", style: STYLE, center: [-1.9, 52.8], zoom: 5.5, attributionControl: { compact: false, customAttribution: CREDITS } });
+  const map = new maplibregl.Map({ container: "map", style: STYLE, center: [-1.9, 52.8], zoom: 5.5, attributionControl: { compact: false, customAttribution: CREDIT_NAMES } });
   const dotsReady = loadMapPoints();
   map.on("load", async () => {
     map.addSource("railways", { type: "raster", tiles: RAILWAYS, tileSize: 256, maxzoom: 19, attribution: '<a href="https://www.openrailwaymap.org/">OpenRailwayMap</a>' });
@@ -123,29 +137,55 @@ export function openPicker(root: HTMLElement, opts: PickerOptions, done: (result
         : "Zoom in to where you watch from and tap the track.";
       return;
     }
+    // Two sets: the stations, and the other timing points behind the switch (BPLAN places them
+    // badly). Each gathers into its own clusters, so a hidden set's points aren't counted.
     // Zoomed out, nearby dots gather into one with a count; zoomed in, each is a dot, coloured by kind, then named.
-    map.addSource("dots", { type: "geojson", data: pointsGeoJson(dots), cluster: true, clusterMaxZoom: 10, clusterRadius: 40 });
-    map.addLayer({ id: "dot-clusters", type: "circle", source: "dots", filter: ["has", "point_count"], paint: { "circle-color": "#124a28", "circle-opacity": 0.75, "circle-radius": ["step", ["get", "point_count"], 12, 20, 16, 100, 21], "circle-stroke-color": "#ffffff", "circle-stroke-width": 1.5 } });
-    map.addLayer({ id: "dot-count", type: "symbol", source: "dots", filter: ["has", "point_count"], layout: { "text-field": ["get", "point_count_abbreviated"], "text-font": ["Noto Sans Regular"], "text-size": 12 }, paint: { "text-color": "#ffffff" } });
-    map.addLayer({
-      id: "dots",
-      type: "circle",
-      source: "dots",
-      filter: ["!", ["has", "point_count"]],
-      paint: {
-        "circle-color": ["match", ["get", "kind"], "station", KIND_COLOUR.station, "junction", KIND_COLOUR.junction, KIND_COLOUR.other],
-        "circle-radius": ["interpolate", ["linear"], ["zoom"], 9, ["match", ["get", "kind"], "station", 5, 3.5], 15, ["match", ["get", "kind"], "station", 9, 7]],
-        "circle-stroke-color": "#ffffff",
-        "circle-stroke-width": 1.5,
-      },
-    });
-    map.addLayer({ id: "dot-names", type: "symbol", source: "dots", filter: ["!", ["has", "point_count"]], minzoom: 12, layout: { "text-field": ["get", "name"], "text-font": ["Noto Sans Regular"], "text-size": 12, "text-offset": [0, 0.9], "text-anchor": "top", "text-optional": true }, paint: { "text-color": "#0f172a", "text-halo-color": "#ffffff", "text-halo-width": 1.5 } });
+    const addSet = (set: "stations" | "others", points: MapPoint[], attribution: string, visible: boolean) => {
+      const visibility = visible ? "visible" : "none";
+      map.addSource(set, { type: "geojson", data: pointsGeoJson(points), cluster: true, clusterMaxZoom: 10, clusterRadius: 40, attribution });
+      const colour = set === "stations" ? KIND_COLOUR.station : KIND_COLOUR.other;
+      // The others' clusters sit up and to the right of the stations', so both counts show where they'd overlap.
+      const nudge: [number, number] = set === "stations" ? [0, 0] : [14, -14];
+      map.addLayer({ id: `${set}-clusters`, type: "circle", source: set, filter: ["has", "point_count"], layout: { visibility }, paint: { "circle-color": colour, "circle-opacity": 0.75, "circle-radius": ["step", ["get", "point_count"], 12, 20, 16, 100, 21], "circle-stroke-color": "#ffffff", "circle-stroke-width": 1.5, "circle-translate": nudge } });
+      map.addLayer({ id: `${set}-count`, type: "symbol", source: set, filter: ["has", "point_count"], layout: { visibility, "text-field": ["get", "point_count_abbreviated"], "text-font": ["Noto Sans Regular"], "text-size": 12 }, paint: { "text-color": "#ffffff", "text-translate": nudge } });
+      map.addLayer({
+        id: set,
+        type: "circle",
+        source: set,
+        filter: ["!", ["has", "point_count"]],
+        layout: { visibility },
+        paint: {
+          "circle-color": ["match", ["get", "kind"], "station", KIND_COLOUR.station, "junction", KIND_COLOUR.junction, KIND_COLOUR.other],
+          "circle-radius": ["interpolate", ["linear"], ["zoom"], 9, ["match", ["get", "kind"], "station", 5, 3.5], 15, ["match", ["get", "kind"], "station", 9, 7]],
+          "circle-stroke-color": "#ffffff",
+          "circle-stroke-width": 1.5,
+        },
+      });
+      map.addLayer({ id: `${set}-names`, type: "symbol", source: set, filter: ["!", ["has", "point_count"]], minzoom: 12, layout: { visibility, "text-field": ["get", "name"], "text-font": ["Noto Sans Regular"], "text-size": 12, "text-offset": [0, 0.9], "text-anchor": "top", "text-optional": true }, paint: { "text-color": "#0f172a", "text-halo-color": "#ffffff", "text-halo-width": 1.5 } });
+    };
+    const showOthers = othersOn(storage());
+    const { stations, others } = splitDots(dots);
+    addSet("stations", stations, CREDIT_STATIONS, true);
+    addSet("others", others, CREDIT_OTHERS, showOthers);
+    toggle.checked = showOthers;
+    toggle.closest("label")!.hidden = false;
     byCode = new Map(dots.map((d) => [d.code, d]));
     // Open on the other box's place (so B is found near A), else this box's, else the spot; else near you if you've allowed it before.
     const centre = mapCentre((c) => byCode.get(c), opts);
     if (centre) map.jumpTo({ center: [centre.lon, centre.lat], zoom: 13 });
     else void nearMeIfAllowed();
     status.textContent = finding ? "Tap a dot to see what it is, then Use this." : "Tap a dot to use it, or zoom in to where you watch from and tap the track.";
+    // A box (or the spot) already holding a junction: show the others, so its dot is there (this visit only).
+    if (!showOthers && othersNeeded((c) => byCode.get(c)?.kind, [opts.a, opts.b, opts.spotA, opts.spotB])) {
+      toggle.checked = true;
+      for (const id of ["others-clusters", "others-count", "others", "others-names"]) map.setLayoutProperty(id, "visibility", "visible");
+    }
+  });
+  const toggle = root.querySelector<HTMLInputElement>("#pick-others")!;
+  toggle.addEventListener("change", () => {
+    setOthersOn(storage(), toggle.checked);
+    for (const id of ["others-clusters", "others-count", "others", "others-names"]) if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", toggle.checked ? "visible" : "none");
+    hideCard();
   });
   const card = root.querySelector<HTMLElement>("#pick-card")!;
   const hideCard = (focusMap = false) => {
@@ -160,6 +200,7 @@ export function openPicker(root: HTMLElement, opts: PickerOptions, done: (result
     card.innerHTML = `<button type="button" class="ghost icon card-close" aria-label="Close">✕</button>
       <h2 id="card-name">${esc(p.name)}</h2>
       <p class="card-what"><span class="kind kind-${p.kind}">${KIND_TEXT[p.kind]}</span> · ${codeLabel(p)} <b>${esc(p.code)}</b></p>
+      ${p.kind === "station" ? "" : `<p class="card-approx">Place approximate (Network Rail's grid reference)</p>`}
       <div class="card-uses">${uses}</div>`;
     card.hidden = false;
     card.querySelector<HTMLButtonElement>("[data-use]")!.focus();
@@ -172,10 +213,10 @@ export function openPicker(root: HTMLElement, opts: PickerOptions, done: (result
 
   /** A dot (or a cluster of them) under a tap, with room for a finger: true when it took the tap. */
   const tappedDot = (e: maplibregl.MapMouseEvent): boolean => {
-    if (!map.getLayer("dots")) return false;
+    if (!map.getLayer("stations")) return false;
     // Room for a finger on Find on map; less on Pick on a map, so a tap on the track beside a dot is still a track tap.
     const r = finding ? 16 : 8;
-    const hits = map.queryRenderedFeatures([[e.point.x - r, e.point.y - r], [e.point.x + r, e.point.y + r]], { layers: ["dots", "dot-clusters"] });
+    const hits = map.queryRenderedFeatures([[e.point.x - r, e.point.y - r], [e.point.x + r, e.point.y + r]], { layers: ["stations", "stations-clusters", "others", "others-clusters"] });
     if (!hits.length) return false;
     const cluster = hits.find((f) => f.properties?.cluster);
     const dot = hits
@@ -186,7 +227,7 @@ export function openPicker(root: HTMLElement, opts: PickerOptions, done: (result
     if (dot) showCard(dot);
     else if (cluster) {
       const id = Number(cluster.properties?.cluster_id);
-      void (map.getSource("dots") as maplibregl.GeoJSONSource).getClusterExpansionZoom(id).then((z) => map.easeTo({ center: e.lngLat, zoom: z + 0.5 }));
+      void (map.getSource(String(cluster.source)) as maplibregl.GeoJSONSource).getClusterExpansionZoom(id).then((z) => map.easeTo({ center: e.lngLat, zoom: z + 0.5 }));
     } else return false;
     return true;
   };
@@ -207,7 +248,7 @@ export function openPicker(root: HTMLElement, opts: PickerOptions, done: (result
     if (tappedDot(e)) return;
     if (finding) {
       if (map.getZoom() < 11) map.flyTo({ center: e.lngLat, zoom: 13 });
-      status.textContent = byCode.size ? "Tap a dot: green for stations, orange for junctions, grey for other timing points." : status.textContent;
+      status.textContent = byCode.size ? (toggle.checked ? "Tap a dot: green for stations, orange for junctions, grey for other timing points." : "Tap a station's dot, or switch on junctions and timing points.") : status.textContent;
       return;
     }
     if (map.getZoom() < 13) {

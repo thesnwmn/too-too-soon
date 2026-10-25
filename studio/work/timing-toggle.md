@@ -3,7 +3,8 @@ title: The map shows stations only, with a switch for the other timing points
 kind: build
 role: engineer
 size: S
-status: ready
+status: trial
+pr: 33
 milestone: m1-first-trains
 ---
 
@@ -23,3 +24,5 @@ Moving the points to better places (a better source than BPLAN, or snapping them
 
 ## Log
 - 2026-10-25 shaped by the Director from the producer's /director. Defaults the producer can change: the switch's name, and remembering it once turned on.
+- 2026-10-25 a call the producer can overturn: when a box, or the spot being watched, already holds a junction or other timing point, the map shows them for that visit (the switch shows on, not remembered), so it doesn't open on a place with no dot.
+- 2026-10-25 built (#33). Stations and the others are two map sources, each clustered on its own and carrying its own credit, so the clusters and Network Rail's credit follow the switch; the others' clusters are nudged up and right so the two don't sit on each other. Tester, on a blank stand-in map at 390×844, 375×667 and 360×640: stations only by default; the switch shows and hides the others; the credit follows; the card's approximate line on non-stations only; remembered after a reload once on, forgotten once off; a junction in a box turns them on for that visit without remembering; one screen, no scroll. Critic: nothing blocking; the spot being watched now counts too, and the split and the rule have tests. Left for the trial: the cluster counts with real fonts, and how much of a small screen the credits take with the switch on. [Session](../sessions/2026-10-25-0840-timing-toggle.md).
