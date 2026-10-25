@@ -144,8 +144,10 @@ export function openPicker(root: HTMLElement, opts: PickerOptions, done: (result
       const visibility = visible ? "visible" : "none";
       map.addSource(set, { type: "geojson", data: pointsGeoJson(points), cluster: true, clusterMaxZoom: 10, clusterRadius: 40, attribution });
       const colour = set === "stations" ? KIND_COLOUR.station : KIND_COLOUR.other;
-      map.addLayer({ id: `${set}-clusters`, type: "circle", source: set, filter: ["has", "point_count"], layout: { visibility }, paint: { "circle-color": colour, "circle-opacity": 0.75, "circle-radius": ["step", ["get", "point_count"], 12, 20, 16, 100, 21], "circle-stroke-color": "#ffffff", "circle-stroke-width": 1.5 } });
-      map.addLayer({ id: `${set}-count`, type: "symbol", source: set, filter: ["has", "point_count"], layout: { visibility, "text-field": ["get", "point_count_abbreviated"], "text-font": ["Noto Sans Regular"], "text-size": 12 }, paint: { "text-color": "#ffffff" } });
+      // The others' clusters sit up and to the right of the stations', so both counts show where they'd overlap.
+      const nudge: [number, number] = set === "stations" ? [0, 0] : [14, -14];
+      map.addLayer({ id: `${set}-clusters`, type: "circle", source: set, filter: ["has", "point_count"], layout: { visibility }, paint: { "circle-color": colour, "circle-opacity": 0.75, "circle-radius": ["step", ["get", "point_count"], 12, 20, 16, 100, 21], "circle-stroke-color": "#ffffff", "circle-stroke-width": 1.5, "circle-translate": nudge } });
+      map.addLayer({ id: `${set}-count`, type: "symbol", source: set, filter: ["has", "point_count"], layout: { visibility, "text-field": ["get", "point_count_abbreviated"], "text-font": ["Noto Sans Regular"], "text-size": 12 }, paint: { "text-color": "#ffffff", "text-translate": nudge } });
       map.addLayer({
         id: set,
         type: "circle",
