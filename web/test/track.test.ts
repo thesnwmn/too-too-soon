@@ -112,6 +112,24 @@ describe("findOnTiles", () => {
     expect(asked).toContain(tileKey(tileOf(east(7))));
     expect(asked).not.toContain(tileKey(tileOf(east(-9))));
   });
+  it("waits for the tiles past a cut nearer than what it found, so a branch's station doesn't beat a nearer one past the edge", async () => {
+    const tiles = lineTiles(-10, 10);
+    // The first tiles reach a little past 1.5 km east; the main line's next station is 200 m past their edge.
+    const t = tileOf(east(1.5));
+    const edgeKm = ((((t.x + 1) / n) * 360 - 180 - woking.lon) * 111.32 * Math.cos((woking.lat * Math.PI) / 180));
+    const nearStation = east(edgeKm + 0.2);
+    // A branch from 300 m east, 450 m north, then east: its station is further along than the main line's, but in the first tiles.
+    const up = { lat: woking.lat + 0.004, lon: east(0.3).lon };
+    const branchEnd = { lat: up.lat, lon: east(edgeKm + 0.5).lon };
+    const home = tileOf(woking);
+    const rail = (points: { lat: number; lon: number }[]) => ({ props: RAIL, points });
+    const mainHere = railLines(tiles.get(tileKey(home))!, home).map(rail);
+    tiles.set(tileKey(home), tile(home, [...mainHere, rail([east(0.3), up, branchEnd])]));
+    serve(tiles);
+    const r = await findOnTiles(src, east(0), [dot("WWW", east(-1)), dot("BRANCH", { ...branchEnd, lat: branchEnd.lat + 0.0003 }), dot("NEAR", nearStation)], signal);
+    if (!r || r === "no track") throw new Error(`found ${r}`);
+    expect([r.a.code, r.b.code].sort()).toEqual(["NEAR", "WWW"]);
+  });
   it("says there's no track where the tiles have no rail near the tap", async () => {
     serve(lineTiles(-3, 3));
     expect(await findOnTiles(src, { lat: woking.lat + 0.01, lon: woking.lon }, [dot("WWW", east(-1)), dot("EEE", east(1))], signal)).toBe("no track");

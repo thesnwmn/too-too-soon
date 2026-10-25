@@ -69,11 +69,12 @@ export async function findOnTiles(src: TileSource, tap: LatLon, dots: MapPoint[]
     // Only the dots near the tiles there are: locate tries every dot against every bit of track.
     const box = bounds(lines);
     const near = dots.filter((d) => d.lat > box.s && d.lat < box.n && d.lon > box.w && d.lon < box.e);
-    // A dot past where a tile cut the line is found further on, from the next tiles.
+    // A dot past where a tile cut the line is found further on, from the next tiles; and one found
+    // further along than a cut (down a branch, say) waits for them, as a nearer one may be past it.
     const ahead = tilesAhead(ways, tap, have, z);
     const found = locate([...ways, ...dotNodes(near)], tap, ahead.cut);
-    if (found) return found;
     next = ahead.tiles.slice(0, MORE);
+    if (found && (Math.max(found.a.along, found.b.along) <= ahead.nearestCut || !next.length || have.size >= MAX_TILES)) return found;
   }
   return undefined;
 }

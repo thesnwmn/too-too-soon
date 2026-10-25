@@ -145,50 +145,106 @@ export function dotNodes(dots: { code: string; name: string; lat: number; lon: n
 
 /**
  * Where the track joined to the tap's was cut at the edge of the tiles there are: its loose ends
- * with a tile just past them that isn't had yet (`cut`, node ids, for locate), and those tiles,
- * to fetch next if locate doesn't find a timing point both ways, nearest the tap first. None
- * when every end is a real end (a buffer stop, or the line's end in tiles already had).
+ * with a tile just past them that isn't had yet (`cut`, node ids, for locate), how far along the
+ * track the nearest of them is from the tap (`nearestCut`, metres), and those tiles, to fetch
+ * next, nearest the tap first. A timing point found further along than `nearestCut` may not be
+ * the nearest: a nearer one can be past the cut. None when every end is a real end (a buffer
+ * stop, or the line's end in tiles already had).
  */
-export function tilesAhead(ways: OsmElement[], tap: LatLon, have: Set<string>, z = TILE_ZOOM): { tiles: Tile[]; cut: Set<number> } {
-  const adj = new Map<number, { to: number; at: LatLon; from: LatLon }[]>();
-  let near: { id: number; d: number } | undefined;
+export function tilesAhead(ways: OsmElement[], tap: LatLon, have: Set<string>, z = TILE_ZOOM): { tiles: Tile[]; cut: Set<number>; nearestCut: number } {
+  const adj = new Map<number, { to: number; m: number; at: LatLon; from: LatLon }[]>();
+  // The tapped segment: the walk starts from both its ends, as far from the tap as they are along it.
+  let near: { u: number; v: number; du: number; dv: number; d: number } | undefined;
   for (const w of ways) {
     if (w.type !== "way" || !w.nodes || !w.geometry) continue;
     for (let i = 1; i < w.nodes.length; i++) {
       const [u, v, p, q] = [w.nodes[i - 1], w.nodes[i], w.geometry[i - 1], w.geometry[i]];
       if (u === v) continue;
+      const m = distance(p, q);
       for (const [s, t, sp, tp] of [[u, v, p, q], [v, u, q, p]] as const) {
         if (!adj.has(s)) adj.set(s, []);
-        adj.get(s)!.push({ to: t, at: tp, from: sp });
+        adj.get(s)!.push({ to: t, m, at: tp, from: sp });
       }
-      for (const [n, pt] of [[u, p], [v, q]] as const) {
-        const d = distance(tap, pt);
-        if (!near || d < near.d) near = { id: n, d };
-      }
+      const pr = nearest(tap, p, q);
+      const d = distance(tap, pr);
+      if (!near || d < near.d) near = { u, v, du: pr.t * m, dv: (1 - pr.t) * m, d };
     }
   }
   const cut = new Set<number>();
-  if (!near) return { tiles: [], cut };
-  // Every node joined to the tap's track; its loose ends are those with one neighbour.
-  const seen = new Set([near.id]);
-  const stack = [near.id];
+  if (!near) return { tiles: [], cut, nearestCut: Infinity };
+  // Every node joined to the tap's track, nearest first along it; its loose ends are those with one neighbour.
+  const dist = new Map<number, number>([
+    [near.u, near.du],
+    [near.v, near.dv],
+  ]);
+  const heap = new Heap();
+  heap.push(near.du, near.u);
+  heap.push(near.dv, near.v);
+  const done = new Set<number>();
   const ahead: { t: Tile; d: number }[] = [];
-  while (stack.length) {
-    const n = stack.pop()!;
+  let nearestCut = Infinity;
+  while (heap.size) {
+    const [m, n] = heap.pop();
+    if (done.has(n)) continue;
+    done.add(n);
     const out = adj.get(n) ?? [];
     if (new Set(out.map((o) => o.to)).size === 1) {
       // Just past the end, along the line's last bit.
       const { at: back, from: end } = out[0];
-      const m = Math.max(distance(back, end), 0.1);
-      const past = { lat: end.lat + ((end.lat - back.lat) * 50) / m, lon: end.lon + ((end.lon - back.lon) * 50) / m };
-      for (const t of [tileOf(end, z), tileOf(past, z)]) if (!have.has(tileKey(t))) ahead.push({ t, d: distance(tap, end) }), cut.add(n);
+      const len = Math.max(distance(back, end), 0.1);
+      const past = { lat: end.lat + ((end.lat - back.lat) * 50) / len, lon: end.lon + ((end.lon - back.lon) * 50) / len };
+      for (const t of [tileOf(end, z), tileOf(past, z)])
+        if (!have.has(tileKey(t))) {
+          ahead.push({ t, d: m });
+          cut.add(n);
+          nearestCut = Math.min(nearestCut, m);
+        }
     }
-    for (const o of out) if (!seen.has(o.to)) seen.add(o.to), stack.push(o.to);
+    for (const o of out) {
+      const next = m + o.m;
+      if (!done.has(o.to) && next < (dist.get(o.to) ?? Infinity)) dist.set(o.to, next), heap.push(next, o.to);
+    }
   }
   const keys = new Set<string>();
   const tiles = ahead
     .sort((s, t) => s.d - t.d)
     .map((a) => a.t)
     .filter((t) => !keys.has(tileKey(t)) && !!keys.add(tileKey(t)));
-  return { tiles, cut };
+  return { tiles, cut, nearestCut };
+}
+
+/** A binary heap of [metres, node], smallest first: a tap's tiles can hold tens of thousands of nodes. */
+class Heap {
+  private a: [number, number][] = [];
+  get size() {
+    return this.a.length;
+  }
+  push(k: number, v: number) {
+    const a = this.a;
+    a.push([k, v]);
+    for (let i = a.length - 1; i > 0; ) {
+      const p = (i - 1) >> 1;
+      if (a[p][0] <= a[i][0]) break;
+      [a[p], a[i]] = [a[i], a[p]];
+      i = p;
+    }
+  }
+  pop(): [number, number] {
+    const a = this.a;
+    const top = a[0];
+    const last = a.pop()!;
+    if (a.length) {
+      a[0] = last;
+      for (let i = 0; ; ) {
+        const l = 2 * i + 1, r = l + 1;
+        let m = i;
+        if (l < a.length && a[l][0] < a[m][0]) m = l;
+        if (r < a.length && a[r][0] < a[m][0]) m = r;
+        if (m === i) break;
+        [a[m], a[i]] = [a[i], a[m]];
+        i = m;
+      }
+    }
+    return top;
+  }
 }

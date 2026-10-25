@@ -1,11 +1,10 @@
 // The map picker: tap the railway where you watch from, and it finds the timing points either
 // side (packages/core locate): the track from the map's own tiles and the timing points from the
 // dots (track.ts, picker-offline), or, where the tiles have no rail, from OpenStreetMap, asked
-// through the Worker's /api/osm. And the
-// dots (find-on-map): every station from points.json, and the other timing points behind a
-// switch (timing-toggle), which a tap shows on a card, to fill a box on the set-up form; "Find on
-// map" opens it for one box. Loaded only when
-// the set-up asks for it, so the watch view stays small.
+// through the Worker's /api/osm. And the dots (find-on-map): every station from points.json, and
+// the other timing points behind a switch (timing-toggle), which a tap shows on a card, to fill a
+// box on the set-up form; "Find on map" opens it for one box. Loaded only when the set-up asks
+// for it, so the watch view stays small.
 import * as maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 // MapLibre draws vector tiles in a web worker it finds next to its own file, which a bundle
@@ -271,6 +270,8 @@ export function openPicker(root: HTMLElement, opts: PickerOptions, done: (result
       return;
     }
     const mine = ++asking;
+    // Whether OpenStreetMap is being asked (the fallback), to say who didn't answer.
+    let askingOsm = false;
     picked = undefined;
     use.disabled = true;
     markers.forEach((m) => m.remove());
@@ -288,6 +289,7 @@ export function openPicker(root: HTMLElement, opts: PickerOptions, done: (result
       let found = src && dots.length ? await findOnTiles(src, tap, dots, signal) : "no track";
       if (mine !== asking) return;
       if (found === "no track") {
+        askingOsm = true;
         const slow = window.setTimeout(() => mine === asking && (status.textContent = "Still looking: OpenStreetMap's free servers can be slow, especially late at night…"), 10_000);
         found = await find(tap.lat, tap.lon, signal).finally(() => window.clearTimeout(slow));
         if (mine !== asking) return;
@@ -329,7 +331,7 @@ export function openPicker(root: HTMLElement, opts: PickerOptions, done: (result
           : (err as Error).name === "TimeoutError"
             ? "OpenStreetMap is slow to answer just now: try again in a moment."
             : (err as Error).name === "TypeError"
-              ? "Couldn't reach the map: no signal? Try again in a moment."
+              ? `Couldn't reach ${askingOsm ? "OpenStreetMap" : "the map"}: no signal? Try again in a moment.`
               : `${(err as Error).message}: try again in a moment.`;
     }
   });

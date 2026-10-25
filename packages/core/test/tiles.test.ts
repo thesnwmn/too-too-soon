@@ -101,7 +101,7 @@ describe("the tiles to fetch next", () => {
   });
   it("are none when the line ends in the tiles there are", () => {
     const have = new Set([t, { ...t, x: t.x - 1 }, { ...t, x: t.x + 1 }].map(tileKey));
-    expect(tilesAhead(tracksFromLines([across]), tap, have)).toEqual({ tiles: [], cut: new Set() });
+    expect(tilesAhead(tracksFromLines([across]), tap, have)).toEqual({ tiles: [], cut: new Set(), nearestCut: Infinity });
   });
   it("follow branches joined to the tap's track, not lines that aren't", () => {
     const north = { lat: e.north + (e.north - e.south) * 0.015, lon: tap.lon };
@@ -110,6 +110,14 @@ describe("the tiles to fetch next", () => {
     const next = tilesAhead(tracksFromLines([across, branch, apart]), tap, new Set([tileKey(t)])).tiles;
     expect(next.map(tileKey)).toContain(tileKey({ ...t, y: t.y - 1 }));
     expect(next.map(tileKey)).not.toContain(tileKey({ ...t, y: t.y + 1 }));
+  });
+  it("measure how far along the track the nearest cut is, from the tapped line, not the nearest corner", () => {
+    // Double track, not joined: the tap is on the down line, nearer the up line's end point than any of the down line's.
+    const down = [{ lat: tap.lat, lon: e.west + 0.002 }, { lat: tap.lat, lon: e.east + past }];
+    const up = [{ lat: tap.lat + 0.0001, lon: tap.lon - 0.0001 }, { lat: tap.lat + 0.0001, lon: tap.lon + 0.0001 }];
+    const r = tilesAhead(tracksFromLines([down, up]), tap, new Set([tileKey(t)]));
+    expect(r.tiles.map(tileKey)).toEqual([tileKey({ ...t, x: t.x + 1 })]);
+    expect(r.nearestCut).toBeCloseTo(distance(tap, down[1]), -1);
   });
   it("are none with no track", () => expect(tilesAhead([], tap, new Set()).tiles).toEqual([]));
   it("name the cut ends, so a station just past one isn't hung off it", () => {
