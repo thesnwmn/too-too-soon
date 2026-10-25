@@ -3,7 +3,7 @@ title: Every timing point has a place on the map
 kind: build
 role: engineer
 size: S
-status: doing
+status: done
 pr: 28
 milestone: m1-first-trains
 ---
@@ -24,3 +24,4 @@ The map layer and the card (`find-on-map`). Track geometry.
 
 ## Log
 - 2026-10-25 shaped by the Director from the producer's /director. Start with a spike: can the deploy reach a BPLAN download without an account, and how many of the 12,000 places does it place?
+- 2026-10-25 built (#28). The spike from GitHub's runners: NaPTAN's stops CSV answers with no account (2,769 rail stops, `9100<TIPLOC>`, latitude and longitude); BPLAN doesn't (the Open Rail Data wiki gives a 403, Network Rail's feeds need a login). So `points.json` holds the stations: 2,618 of 2,623 placed, 66 KB (28 KB gzipped); Woking, Brookwood and Clapham Junction where they are. Joined by TIPLOC through RTT's locations, else by a name only one station has (Clapham Junction is CLPHMJN to RTT, CLPHMJ1 to NaPTAN). Junctions aren't placed: ask [junction-points](../asks/junction-points.md), default stations only. `code/points` checks the file. [Session](../sessions/2026-10-25-0703-point-coords.md).
