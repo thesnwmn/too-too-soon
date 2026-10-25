@@ -3,7 +3,7 @@ title: Find on map: every timing point on the map, tap one to see it and use it
 kind: build
 role: engineer
 size: M
-status: ready
+status: doing
 milestone: m1-first-trains
 needs: [point-coords]
 ---
