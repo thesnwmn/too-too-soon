@@ -3,7 +3,7 @@ title: The page remembers your recent spots, to pick again with one tap
 kind: build
 role: engineer
 size: S
-status: ready
+status: doing
 ---
 
 ## Why
