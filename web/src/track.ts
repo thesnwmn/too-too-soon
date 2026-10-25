@@ -52,10 +52,12 @@ export function railLines(buf: ArrayBuffer, t: Tile): LatLon[][] {
 
 /**
  * The timing points either side of a tap, along the track in the tiles. "No track" when the
- * tiles have no running line within 200 m of the tap (then the picker asks OpenStreetMap), and
- * undefined when there's track but no dot both ways within MAX_TILES.
+ * tiles have no running line within a kilometre of the tap (then the picker asks OpenStreetMap,
+ * as the tiles may be missing it); "missed" when there's one, but not within 200 m (the tap
+ * missed it, and OpenStreetMap couldn't help); undefined when there's track but no dot both ways
+ * within MAX_TILES.
  */
-export async function findOnTiles(src: TileSource, tap: LatLon, dots: MapPoint[], signal: AbortSignal): Promise<Located | "no track" | undefined> {
+export async function findOnTiles(src: TileSource, tap: LatLon, dots: MapPoint[], signal: AbortSignal): Promise<Located | "no track" | "missed" | undefined> {
   const z = Math.min(src.maxzoom, TILE_ZOOM);
   const have = new Set<string>();
   const lines: LatLon[][] = [];
@@ -65,7 +67,9 @@ export async function findOnTiles(src: TileSource, tap: LatLon, dots: MapPoint[]
     for (const t of batch) have.add(tileKey(t));
     for (const l of await Promise.all(batch.map((t) => railIn(src, t, signal)))) lines.push(...l);
     const ways = tracksFromLines(lines);
-    if (fromTrack(ways, tap) > 200) return "no track";
+    const off = fromTrack(ways, tap);
+    if (off > 1000) return "no track";
+    if (off > 200) return "missed";
     // Only the dots near the tiles there are: locate tries every dot against every bit of track.
     const box = bounds(lines);
     const near = dots.filter((d) => d.lat > box.s && d.lat < box.n && d.lon > box.w && d.lon < box.e);

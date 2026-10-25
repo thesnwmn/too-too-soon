@@ -104,7 +104,7 @@ describe("findOnTiles", () => {
   it("fetches more tiles along the line when a station is further out", async () => {
     const asked = serve(lineTiles(-10, 10));
     const r = await findOnTiles(src, east(0), [dot("WWW", east(-1)), dot("FAR", east(7))], signal);
-    if (!r || r === "no track") throw new Error(`found ${r}`);
+    if (!r || typeof r === "string") throw new Error(`found ${r}`);
     const far = r.a.code === "FAR" ? r.a : r.b;
     expect([r.a.code, r.b.code].sort()).toEqual(["FAR", "WWW"]);
     expect(far.along).toBeCloseTo(7000, -2);
@@ -127,12 +127,16 @@ describe("findOnTiles", () => {
     tiles.set(tileKey(home), tile(home, [...mainHere, rail([east(0.3), up, branchEnd])]));
     serve(tiles);
     const r = await findOnTiles(src, east(0), [dot("WWW", east(-1)), dot("BRANCH", { ...branchEnd, lat: branchEnd.lat + 0.0003 }), dot("NEAR", nearStation)], signal);
-    if (!r || r === "no track") throw new Error(`found ${r}`);
+    if (!r || typeof r === "string") throw new Error(`found ${r}`);
     expect([r.a.code, r.b.code].sort()).toEqual(["NEAR", "WWW"]);
   });
   it("says there's no track where the tiles have no rail near the tap", async () => {
     serve(lineTiles(-3, 3));
     expect(await findOnTiles(src, { lat: woking.lat + 0.01, lon: woking.lon }, [dot("WWW", east(-1)), dot("EEE", east(1))], signal)).toBe("no track");
+  });
+  it("says the tap missed when there's track a few hundred metres off (OpenStreetMap couldn't help)", async () => {
+    serve(lineTiles(-3, 3));
+    expect(await findOnTiles(src, { lat: woking.lat + 0.003, lon: woking.lon }, [dot("WWW", east(-1)), dot("EEE", east(1))], signal)).toBe("missed");
   });
   it("gives up when there's no station one way, without fetching the whole country", async () => {
     const asked = serve(lineTiles(-30, 30));

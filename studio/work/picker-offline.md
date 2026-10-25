@@ -3,7 +3,7 @@ title: The map picker works without asking OpenStreetMap's servers
 kind: build
 role: engineer
 size: M
-status: doing
+status: trial
 pr: 35
 milestone: m1-first-trains
 needs: [places, one-point, find-on-map]
@@ -25,3 +25,4 @@ Our own tile server or a bundled track map of Britain.
 - 2026-10-24 shaped by the Director from #21. Start with a spike: does OpenFreeMap's `liberty` style carry rail lines and station names at zoom 14 to 16 around Woking?
 - 2026-10-25 `find-on-map` (the producer's /director) picks single points from our own file, with no Overpass. Once it lands, this unit is only the track tap for a spot between two: re-shape it then, perhaps as tapping between two dots.
 - 2026-10-25 re-shaped by the Director on `/go map picker offline`: the timing points come from our dots rather than the tiles' station names (the dots already have codes and places, so no name matching), and the tap on a dot is done by `find-on-map`. Started, #35.
+- 2026-10-25 built (#35). The track from the tiles' `transportation` rail lines (`web/src/track.ts`, decoded with `@mapbox/vector-tile`), joined across tile edges (`tracksFromLines`), fetched along the line as the walk runs off the edge (`tilesAhead`, up to 40 tiles); the timing points are the dots that show. Overpass only where the tiles have no rail within 1 km; a tap 200 m to 1 km off the track says it missed. `locate` no longer measures a station short when a segment stops near it. Critic: a branch's station could beat a nearer one just past a tile's edge (fixed: it waits for the tiles past a nearer cut, tested); smaller wording fixes. Tester, in Chromium on stand-in tiles cut as real ones are, 18 cases at 390×844: Woking–Brookwood (WOK/BKO, f 0.55, 0.5 s), the Portsmouth line, Clapham Jn–Earlsfield and –Wandsworth Town, Tisbury–Gillingham (25 tiles), Dalwhinnie–Blair Atholl (39 tiles); no Overpass or /api/osm request; the switch decides the junction dots; the fallback's 502 says busy; one screen, card included. Found, not this unit's: a station within 250 m of another line is hung off it too, so a Brighton-line tap near Clapham picked Queenstown Road (SWML), as Overpass did (`picker-near-lines`). Left for the trial: real OpenFreeMap tiles, and the producer's phone at the bridge. **A default the producer can change:** a track tap finds only the dots that show. [Session](../sessions/2026-10-25-0855-picker-offline.md).

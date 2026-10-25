@@ -21,6 +21,8 @@ A tap on the track in Pick on a map now works from the map's own OpenFreeMap til
 - `code/map-lazy` also keeps the tile decoder in the picker's chunk; tests.
 - `docs/how-it-works.md`, `docs/architecture.md`, `studio/README.md`.
 
+- Critic: a branch's station beat a nearer one just past a tile's edge; fixed (`tilesAhead` measures along the track to the nearest cut, and the walk waits for those tiles). Tester: a tap just off the track asked OpenStreetMap; it now says it missed.
+
 ## Tried and dropped
 - Joining a tile's cut end with a short connector line: it hid the next tile's segment from the station's nearest-point test. Moving the end onto the line it joins does it.
 
@@ -29,5 +31,6 @@ A tap on the track in Pick on a map now works from the map's own OpenFreeMap til
 - Sessions still can't reach the tile servers, so whether OpenFreeMap's zoom 14 tiles carry every running line with `class=rail` is for the trial.
 
 ## Left for next time
+- `picker-near-lines` (idea, from the Tester): a station within 250 m of another line is hung off it too.
 - The trial at the bridge: real tiles, the time a tap takes with a weak signal.
 - A default the producer can change: the track tap finds only the dots that show (stations, or junctions too with the switch on).

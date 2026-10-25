@@ -302,6 +302,10 @@ export function openPicker(root: HTMLElement, opts: PickerOptions, done: (result
         found = await find(tap.lat, tap.lon, signal).finally(() => window.clearTimeout(slow));
         if (mine !== asking) return;
       }
+      if (found === "missed") {
+        status.textContent = "That's not on the track: zoom in and tap right on the line.";
+        return;
+      }
       if (!found) {
         status.textContent = toggle.checked
           ? "Couldn't find a railway track with a station or timing point either side here. Tap right on the track, or tap a dot instead."
