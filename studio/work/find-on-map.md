@@ -29,4 +29,4 @@ Tapping the track to work out how far along the spot is (the existing picker; `p
 ## Log
 - 2026-10-25 shaped by the Director from the producer's /director. Defaults the producer can change: a button on each box, the card shows the codes and kind, the map opens on the filled point.
 - 2026-10-25 the producer, adding to it: "from any point on the picker it can jump to filling the form. So you can use the map as a 'pick a specific spot' (when we make that work) or a picker for filling the form and the user does the %age bit themselves if using two points." Added to Done when.
-- 2026-10-25 ready: `point-coords` placed 2,618 stations (no junctions yet: ask `junction-points`). The dots' kind and name come from `places.json`, joined by code.
+- 2026-10-25 ready: `point-coords` placed 2,618 stations (no junctions yet: ask `junction-points`). The dots' kind and name come from `places.json`, joined by code (a code in both lists is the station, as `compactPoints` takes it).

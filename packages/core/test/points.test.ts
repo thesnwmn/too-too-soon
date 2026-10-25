@@ -10,10 +10,12 @@ const rows = [
   "9100CLPHMJ1,,,,Clapham Junction Rail Station,,,,,,-,,,,,,,E0034892,Clapham Junction,London,,,,,,0,UKOS,527205,175500,-0.17022139909,51.46418690022,RLY,,,,,,110,2012-09-26T13:55:00,2012-09-26T13:58:00,1,revise,active",
   "9100CLPHMJ2,,,,Clapham Junction Rail Station,,,,,,-,,,,,,,E0034892,Clapham Junction,London,,,,,,1,UKOS,527200,175500,-0.17029333674,51.4641880229,RLY,,,,,,110,2006-09-08T14:30:00,2009-04-14T16:40:00,3,revise,active",
   "9100WOKING,,,,Woking Rail Station,,,,,,-,,,,,,,E0025920,Woking,,,,,,,1,UKOS,500660,158695,-0.55695962081,51.31846934954,RLY,,,,,,110,2006-09-08T14:30:00,2007-09-26T13:00:00,1,revise,active",
-  // Made up, to test the edges: a quoted name with a comma, a closed station, an entrance that isn't a station, a stop with no place.
-  '9100STALBCY,,,,"St Albans City, Rail Station",,,,,,-,,,,,,,E0000001,St Albans,,,,,,,1,UKOS,515300,207400,-0.32733,51.75038,RLY,,,,,,110,2006-09-08T14:30:00,2007-09-26T13:00:00,1,revise,active',
+  // Made up, to test the edges: quoted fields (a comma, a line break), a closed station, an entrance that isn't a station, a stop with no place, two stations of one name far apart.
+  '9100STALBCY,,,,"St Albans City Rail Station",,,,,,"Victoria Street, St Albans",,,,,,,E0000001,St Albans,,,,,,,1,UKOS,515300,207400,-0.32733,51.75038,RLY,,,,"Two lines,\nof notes",,110,2006-09-08T14:30:00,2007-09-26T13:00:00,1,revise,active',
   "9100GONE,,,,Gone Rail Station,,,,,,-,,,,,,,E0000002,Gone,,,,,,,1,UKOS,1,1,-1.5,52.5,RLY,,,,,,110,2006-09-08T14:30:00,2007-09-26T13:00:00,1,delete,inactive",
   "9100WOKING1,,,,Woking Rail Station Entrance,,,,,,-,,,,,,,E0025920,Woking,,,,,,,1,UKOS,500660,158695,-0.557,51.318,RSE,,,,,,110,2006-09-08T14:30:00,2007-09-26T13:00:00,1,revise,active",
+  "9100NWPTRTG,,,,Newport Rail Station,,,,,,-,,,,,,,E0000004,Newport,,,,,,,1,UKOS,1,1,-2.99881,51.58866,RLY,,,,,,110,2006-09-08T14:30:00,2007-09-26T13:00:00,1,revise,active",
+  "9100NWPTEX,,,,Newport Rail Station,,,,,,-,,,,,,,E0000005,Newport,,,,,,,1,UKOS,1,1,1.21,51.98,RLY,,,,,,110,2006-09-08T14:30:00,2007-09-26T13:00:00,1,revise,active",
   "9100NOWHERE,,,,Nowhere Rail Station,,,,,,-,,,,,,,E0000003,Nowhere,,,,,,,1,UKOS,,,,,RLY,,,,,,110,2006-09-08T14:30:00,2007-09-26T13:00:00,1,revise,active",
 ];
 const csv = [header, ...rows].join("\r\n") + "\r\n";
@@ -23,6 +25,7 @@ const stops = [
   { description: "Woking", shortCode: "WOK" },
   { description: "Clapham Junction", shortCode: "CLJ" },
   { description: "St. Albans City", shortCode: "SAC" },
+  { description: "Newport", shortCode: "NWP" },
 ];
 const locations = [
   { description: "Brookwood", shortCode: "BKO", longCode: "BRKWOOD" },
@@ -37,9 +40,9 @@ const places = compactPlaces(locations, stops);
 describe("naptanStations", () => {
   it("reads the active rail stations, each with its TIPLOC, its name and where it is", () => {
     const s = naptanStations(csv);
-    expect(s.map((x) => x.tiploc)).toEqual(["BRKWOOD", "CLPHMJ1", "CLPHMJ2", "WOKING", "STALBCY"]);
+    expect(s.map((x) => x.tiploc)).toEqual(["BRKWOOD", "CLPHMJ1", "CLPHMJ2", "WOKING", "STALBCY", "NWPTRTG", "NWPTEX"]);
     expect(s[0]).toEqual({ tiploc: "BRKWOOD", name: "Brookwood", lat: 51.30375792694, lon: -0.63574781605 });
-    expect(s[4].name).toBe("St Albans City,");
+    expect(s[4]).toEqual({ tiploc: "STALBCY", name: "St Albans City", lat: 51.75038, lon: -0.32733 });
   });
   it("gives nothing for something that isn't the CSV", () => {
     expect(naptanStations("<html>busy</html>")).toEqual([]);
@@ -57,6 +60,9 @@ describe("compactPoints", () => {
   });
   it("falls back to the name when NaPTAN's code isn't RTT's (Clapham Junction is CLPHMJN to RTT, CLPHMJ1 and 2 to NaPTAN)", () => {
     expect(at("CLJ")).toEqual(["CLJ", 51.46419, -0.17022]);
+  });
+  it("never matches a name two far-apart stations have (Newport, Wales and Newport, Essex)", () => {
+    expect(at("NWP")).toBeUndefined();
   });
   it("places nothing it has no station for, and each code once", () => {
     expect(at("WOKINGJ")).toBeUndefined();

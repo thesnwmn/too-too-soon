@@ -3,7 +3,7 @@
 // secret, which never reaches the page. `node .github/scripts/places.mjs web/public/places.json`.
 // If RTT can't be asked, it says so and writes nothing: the page then asks for codes instead.
 // Then it writes points.json beside it, where each station is on the map (packages/core/src/points.ts),
-// from NaPTAN's open list of stops; if NaPTAN can't be asked, it says so and writes no points.
+// from NaPTAN's open list of stops (and RTT's locations, so with no RTT, no points); if NaPTAN can't be asked, it says so and writes no points.
 import { writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { compactPlaces, placesProblems } from "../../packages/core/src/places.ts";

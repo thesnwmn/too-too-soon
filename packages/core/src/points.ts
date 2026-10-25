@@ -20,41 +20,42 @@ export interface Points {
   points: [string, number, number][];
 }
 
-/** One CSV line's fields, with quoted fields (which may hold commas or doubled quotes). */
-function csvFields(line: string): string[] {
-  const out: string[] = [];
+/** A CSV's rows, each a list of fields: quoted fields may hold commas, doubled quotes and line breaks. */
+function csvRows(text: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
   let field = "";
   let quoted = false;
-  for (let i = 0; i < line.length; i++) {
-    const c = line[i];
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
     if (quoted) {
-      if (c === '"' && line[i + 1] === '"') (field += '"'), i++;
+      if (c === '"' && text[i + 1] === '"') (field += '"'), i++;
       else if (c === '"') quoted = false;
       else field += c;
     } else if (c === '"') quoted = true;
-    else if (c === ",") out.push(field), (field = "");
-    else field += c;
+    else if (c === ",") row.push(field), (field = "");
+    else if (c === "\n" || c === "\r") {
+      if (c === "\r" && text[i + 1] === "\n") i++;
+      row.push(field), rows.push(row), (row = []), (field = "");
+    } else field += c;
   }
-  out.push(field);
-  return out;
+  if (field || row.length) row.push(field), rows.push(row);
+  return rows;
 }
 
 /** NaPTAN's rail stations, from its stops CSV (`/v1/access-nodes?dataFormat=csv&atcoAreaCodes=910`): active ones with a place. */
 export function naptanStations(csv: string): NaptanStation[] {
-  const lines = csv.split(/\r?\n/);
-  const head = csvFields(lines[0] ?? "");
+  const [head = [], ...rows] = csvRows(csv);
   const at = (name: string) => head.indexOf(name);
   const [code, name, lat, lon, type, status] = ["ATCOCode", "CommonName", "Latitude", "Longitude", "StopType", "Status"].map(at);
   if ([code, name, lat, lon].some((i) => i < 0)) return [];
   const out: NaptanStation[] = [];
-  for (const line of lines.slice(1)) {
-    if (!line) continue;
-    const f = csvFields(line);
+  for (const f of rows) {
     if (!f[code]?.startsWith("9100") || (type >= 0 && f[type] !== "RLY") || (status >= 0 && f[status] !== "active")) continue;
     const y = Number(f[lat]);
     const x = Number(f[lon]);
     if (!f[lat] || !f[lon] || !Number.isFinite(y) || !Number.isFinite(x)) continue;
-    out.push({ tiploc: f[code].slice(4).toUpperCase(), name: f[name].replace(/\s+(Rail|Railway|Train) Station$/i, "").trim(), lat: y, lon: x });
+    out.push({ tiploc: f[code].slice(4).toUpperCase(), name: f[name].replace(/[\s,]+(Rail|Railway|Train) Station$/i, "").trim(), lat: y, lon: x });
   }
   return out;
 }
@@ -72,7 +73,8 @@ const fold = (s: string) =>
 /**
  * The small list to ship: a place for each station in the place list that NaPTAN has, found by
  * its TIPLOC (RTT's locations give each station's TIPLOC beside its CRS), else by its name when
- * only one station has it. Rounded to 5 places of decimals, about a metre.
+ * only one of RTT's stations has it and NaPTAN's stations of that name are all within a kilometre
+ * (one station's several rows, as at Clapham Junction): two Newports never trade places. Rounded to 5 places of decimals, about a metre.
  */
 export function compactPoints(stations: NaptanStation[], locations: RttLocation[], places: Places): Points {
   const crsOf = new Map<string, string>();
@@ -89,9 +91,14 @@ export function compactPoints(stations: NaptanStation[], locations: RttLocation[
     const code = crs && station.has(crs) ? crs : other.has(s.tiploc) ? s.tiploc : undefined;
     if (code && !found.has(code)) found.set(code, [round(s.lat), round(s.lon)]);
   }
-  for (const s of stations) {
-    const code = byName.get(fold(s.name));
-    if (code && !found.has(code)) found.set(code, [round(s.lat), round(s.lon)]);
+  const naptanByName = new Map<string, NaptanStation[]>();
+  for (const s of stations) naptanByName.set(fold(s.name), [...(naptanByName.get(fold(s.name)) ?? []), s]);
+  // About a kilometre, in degrees: close enough for one station's rows, too close for two towns.
+  const near = (p: NaptanStation, q: NaptanStation) => Math.abs(p.lat - q.lat) < 0.01 && Math.abs(p.lon - q.lon) < 0.015;
+  for (const [n, same] of naptanByName) {
+    const code = byName.get(n);
+    if (!code || found.has(code) || !same.every((s) => near(s, same[0]))) continue;
+    found.set(code, [round(same[0].lat), round(same[0].lon)]);
   }
   return { v: 1, points: [...found].map(([c, [y, x]]) => [c, y, x] as [string, number, number]).sort((p, q) => p[0].localeCompare(q[0])) };
 }
