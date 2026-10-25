@@ -229,7 +229,7 @@ function setupView(): string {
   const mode = d?.mode ?? (d?.b || s?.b ? "two" : "one");
   return `<header><h1 class="brand">${logo}${wordmark()}</h1>${s ? `<button type="button" id="cancel" class="ghost">Cancel</button>` : ""}</header>
     ${yourSpots()}
-    <p class="intro">How long till the next too too? Set up ${mine.length ? "a new spot" : "where you watch trains from"}: one station or junction, or a spot between two (a bridge, say). Search by name, or tap it on a map.</p>
+    <p class="intro">How long till the next too too? Set up where you watch trains from: one station or junction, or a spot between two (a bridge, say). Search by name, or tap it on a map.</p>
     <button type="button" id="pick" class="wide">Pick on a map</button>
     ${state.error ? `<p class="note">${esc(state.error)}</p>` : ""}
     <form id="setup" data-mode="${mode}">
