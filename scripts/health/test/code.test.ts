@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { icons, mapLazy, places, points, rttHost, noDom, noToken, pngSize, typecheck, wrangler } from "../src/code.ts";
+import { bplanAt, icons, mapLazy, places, points, rttHost, noDom, noToken, pngSize, typecheck, wrangler } from "../src/code.ts";
 import { ctx, fakeShell, tmpDir } from "./fixture.ts";
 
 describe("code/typecheck (and the other pnpm runs)", () => {
@@ -116,5 +116,24 @@ describe("code/points", () => {
     const away = list(1200);
     away.points[0] = ["WOK", 51.3, 120];
     expect(points.run(ctx(tmpDir({ "web/public/points.json": JSON.stringify(away) }))).detail).toBe("WOK is outside Great Britain (51.3, 120)");
+  });
+});
+
+describe("code/bplan", () => {
+  const kept = (n: number, source = "02-06-2024 to 14-12-2024, made 24-05-2024") => JSON.stringify({ v: 1, source, points: Array.from({ length: n }, (_, i) => [`T${String(i).padStart(4, "0")}`, 51.3, -0.56]) });
+  const check = bplanAt(() => Date.UTC(2026, 9, 25));
+  const at = (json?: string) => check.run(ctx(tmpDir(json === undefined ? {} : { "packages/core/data/bplan-points.json": json })));
+  it("passes with none kept, or a good one", () => {
+    expect(at().status).toBe("pass");
+    expect(at(kept(3500))).toEqual({ status: "pass", detail: "BPLAN 02-06-2024 to 14-12-2024, made 24-05-2024" });
+  });
+  it("fails a copy with almost nothing in it, or a point outside Great Britain", () => {
+    expect(at(kept(10)).detail).toBe("only 10 points, fewer than 3000");
+    const away = JSON.parse(kept(3500));
+    away.points[0] = ["ACTNLRG", 55.8195, 2.25563];
+    expect(at(JSON.stringify(away)).status).toBe("fail");
+  });
+  it("warns once it's two years past its end", () => {
+    expect(at(kept(3500, "01-06-2023 to 10-12-2023, made 20-05-2023")).status).toBe("warn");
   });
 });

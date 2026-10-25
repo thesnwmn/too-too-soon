@@ -87,6 +87,37 @@ describe("pointsProblems", () => {
     expect(pointsProblems("nope")).toEqual(["not JSON"]);
     expect(pointsProblems('{"v":1}')).toEqual(["no points"]);
     expect(pointsProblems(JSON.stringify({ v: 1, points: [["wok", 51, 0]] }), 1)[0]).toMatch(/isn't \[code, lat, lon\]/);
-    expect(pointsProblems("x".repeat(500_000))[0]).toMatch(/over 400 KB/);
+    expect(pointsProblems("x".repeat(600_000))[0]).toMatch(/over 500 KB/);
   });
+});
+
+describe("compactPoints, with BPLAN's timing points", () => {
+  const timing = [
+    ["WOKINGJ", 51.31113, -0.56217], // Woking Jn, 700 m from Woking
+    ["WOKING", 51.31762, -0.55785], // a station NaPTAN has: NaPTAN wins
+    ["WOKI100", 55.8, -4.2], // Woking Signal Wk506, in Glasgow: wrong
+    ["CLPHMYD", 51.465, -0.18], // Clapham Yard: no station's name starts it, but near Clapham Junction
+    ["SEAJN", 51.82, -6.19], // in the sea, far from any station
+    ["WOKJN", 51.38, -0.56], // Woking Jn again, 7 km north of Woking: too far for a namesake
+    ["NOTLIST", 51.3, -0.5], // not in the place list
+  ] as [string, number, number][];
+  const more = [
+    ...locations,
+    { description: "Woking Signal Wk506", longCode: "WOKI100" },
+    { description: "Clapham Yard", longCode: "CLPHMYD" },
+    { description: "Sea Jn", longCode: "SEAJN" },
+    { description: "Woking Jn", longCode: "WOKJN" },
+  ];
+  const p = compactPoints(naptanStations(csv), more, compactPlaces(more, stops), timing);
+  const at = (code: string) => p.points.find((x) => x[0] === code);
+  it("adds a junction near the station it's named after", () => expect(at("WOKINGJ")).toEqual(["WOKINGJ", 51.31113, -0.56217]));
+  it("keeps NaPTAN's place for a station", () => expect(at("WOK")).toEqual(["WOK", 51.31847, -0.55696]));
+  it("adds a point named after no station when it's near one", () => expect(at("CLPHMYD")).toEqual(["CLPHMYD", 51.465, -0.18]));
+  it("leaves out a point far from its namesake, or from every station, and says so", () => {
+    expect(at("WOKI100")).toBeUndefined();
+    expect(at("SEAJN")).toBeUndefined();
+    expect(at("WOKJN")).toBeUndefined();
+    expect(p.dropped).toEqual(["WOKI100", "SEAJN", "WOKJN"]);
+  });
+  it("places nothing that isn't in the place list", () => expect(at("NOTLIST")).toBeUndefined());
 });

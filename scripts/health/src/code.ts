@@ -4,7 +4,8 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { placesProblems } from "../../../packages/core/src/places.ts";
 import { pointsProblems } from "../../../packages/core/src/points.ts";
-import { type Check, type Ctx, fail, findInCode, pass, sourceFiles, tail } from "./check.ts";
+import { bplanEnds, bplanProblems } from "../../../packages/core/src/bplan.ts";
+import { type Check, type Ctx, fail, findInCode, pass, sourceFiles, tail, warn } from "./check.ts";
 
 const pnpmScript = (id: string, script: string, hint: string, slow = false): Check => ({
   id,
@@ -175,5 +176,29 @@ export const points: Check = {
   },
 };
 
+/** The kept copy of Network Rail's BPLAN (scripts/bplan.mjs), which the deploy joins into points.json. */
+export const BPLAN = "packages/core/data/bplan-points.json";
+const YEAR = 365.25 * 24 * 3600_000;
+
+/** The check, with a clock: it warns once the BPLAN it was made from is two years past its end. */
+export const bplanAt = (now: () => number): Check => ({
+  id: "code/bplan",
+  tier: 4,
+  repro: `node -e "console.log(JSON.parse(require('fs').readFileSync('${BPLAN}','utf8')).source)"`,
+  hint: "The kept copy of BPLAN is { v: 1, source, points: [[TIPLOC, lat, lon]] }, at least BPLAN_MIN of them, all in Great Britain, under BPLAN_MAX_BYTES (packages/core/src/bplan.ts). Remake it from the producer's newer Geography file with `pnpm bplan <file>`; the producer gets one with the steps in studio/asks/junction-points.md.",
+  run({ root }) {
+    const path = join(root, BPLAN);
+    if (!existsSync(path)) return pass("none kept: stations only");
+    const json = readFileSync(path, "utf8");
+    const problems = bplanProblems(json);
+    if (problems.length) return fail(problems.join("; "));
+    const source: string = JSON.parse(json).source;
+    const ends = bplanEnds(source);
+    if (ends !== undefined && now() - ends > 2 * YEAR) return warn(`BPLAN ${source}: over two years old, time for a newer one`);
+    return pass(`BPLAN ${source}`);
+  },
+});
+export const bplan = bplanAt(Date.now);
+
 // Cheap scans first, so a broken convention shows before the slow runs.
-export const CODE = [noToken, rttHost, noDom, wrangler, mapLazy, icons, places, points, typecheck, test, build];
+export const CODE = [noToken, rttHost, noDom, wrangler, mapLazy, icons, places, points, bplan, typecheck, test, build];

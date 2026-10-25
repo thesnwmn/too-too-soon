@@ -3,11 +3,14 @@
 // secret, which never reaches the page. `node .github/scripts/places.mjs web/public/places.json`.
 // If RTT can't be asked, it says so and writes nothing: the page then asks for codes instead.
 // Then it writes points.json beside it, where each station is on the map (packages/core/src/points.ts),
-// from NaPTAN's open list of stops (and RTT's locations, so with no RTT, no points); if NaPTAN can't be asked, it says so and writes no points.
-import { writeFileSync } from "node:fs";
+// from NaPTAN's open list of stops (and RTT's locations, so with no RTT, no points), and the junctions
+// and other timing points from the kept copy of BPLAN (packages/core/data, by scripts/bplan.mjs); if
+// NaPTAN can't be asked, it says so and writes no points.
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { compactPlaces, placesProblems } from "../../packages/core/src/places.ts";
 import { compactPoints, naptanStations, pointsProblems } from "../../packages/core/src/points.ts";
+import { bplanProblems } from "../../packages/core/src/bplan.ts";
 
 const RTT = "https://data.rtt.io";
 const out = process.argv[2];
@@ -52,14 +55,22 @@ const r = await fetch(NAPTAN, { headers: { "User-Agent": "too-too-soon/1 (+https
 const stations = r?.ok ? naptanStations(await r.text()) : [];
 if (!stations.length) noPoints(`NaPTAN answered ${r?.status ?? "nothing"}, with no rail stations.`);
 else {
-  const points = compactPoints(stations, locations, places);
+  // Junctions and other timing points from the kept copy of BPLAN (scripts/bplan.mjs), if it's fit to use.
+  const BPLAN = "packages/core/data/bplan-points.json";
+  const bplanJson = existsSync(BPLAN) ? readFileSync(BPLAN, "utf8") : "";
+  const bplanBad = bplanJson ? bplanProblems(bplanJson) : ["none kept"];
+  const bplan = bplanBad.length ? undefined : JSON.parse(bplanJson);
+  if (!bplan) console.log(`::warning title=No junctions::BPLAN: ${bplanBad.join("; ")}. The map shows stations only.`);
+  const { dropped, ...points } = compactPoints(stations, locations, places, bplan?.points ?? []);
   const pointsJson = JSON.stringify(points);
   const pointsBad = pointsProblems(pointsJson);
   if (pointsBad.length) noPoints(`The list doesn't look right (${pointsBad.join("; ")}).`);
   else {
     writeFileSync(pointsOut, pointsJson);
     const spot = (code) => points.points.find((p) => p[0] === code)?.slice(1).join(", ") ?? "not placed";
-    console.log(`${pointsOut}: ${points.points.length} of ${places.stations.length} stations placed, from ${stations.length} NaPTAN rail stops, ${Math.round(pointsJson.length / 1024)} KB`);
-    for (const code of ["WOK", "BKO", "CLJ", "WOKINGJ"]) console.log(`  ${code}: ${spot(code)}`);
+    const placedStations = places.stations.filter(([, c]) => points.points.some((p) => p[0] === c)).length;
+    console.log(`${pointsOut}: ${placedStations} of ${places.stations.length} stations and ${points.points.length - placedStations} of ${places.others.length} other timing points placed, from ${stations.length} NaPTAN rail stops and ${bplan ? `BPLAN ${bplan.source}` : "no BPLAN"}, ${Math.round(pointsJson.length / 1024)} KB`);
+    if (dropped.length) console.log(`  left out ${dropped.length} BPLAN points too far from their station, or from any: ${dropped.slice(0, 12).join(", ")}${dropped.length > 12 ? " …" : ""}`);
+    for (const code of ["WOK", "BKO", "CLJ", "WOKINGJ", "BRKWDLE"]) console.log(`  ${code}: ${spot(code)}`);
   }
 }

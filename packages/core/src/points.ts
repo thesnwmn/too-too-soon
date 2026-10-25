@@ -1,7 +1,8 @@
 // Where each place is on the map, for finding one there (find-on-map). RTT's lists have no
 // coordinates, so they come from NaPTAN, the Department for Transport's open list of stops: its
 // rail stations are 9100<TIPLOC>, with a latitude and longitude. Made small at deploy time by
-// compactPoints, keyed by the code the place list (places.ts) uses. Junctions aren't in NaPTAN.
+// compactPoints, keyed by the code the place list (places.ts) uses. Junctions aren't in NaPTAN:
+// they come from a kept copy of Network Rail's BPLAN (bplan.ts).
 // See docs/how-it-works.md#setting-up-a-spot.
 
 import type { Places, RttLocation } from "./places.ts";
@@ -74,9 +75,17 @@ const fold = (s: string) =>
  * The small list to ship: a place for each station in the place list that NaPTAN has, found by
  * its TIPLOC (RTT's locations give each station's TIPLOC beside its CRS), else by its name when
  * only one of RTT's stations has it and NaPTAN's stations of that name are all within a kilometre
- * (one station's several rows, as at Clapham Junction): two Newports never trade places. Rounded to 5 places of decimals, about a metre.
+ * (one station's several rows, as at Clapham Junction): two Newports never trade places. Then
+ * BPLAN's timing points (bplan.ts), by TIPLOC: the junctions and others, and any station NaPTAN
+ * missed; NaPTAN wins for a station. BPLAN's grid references are often wrong for small points
+ * (Barnes Signal W1090 is 700 km from Barnes, some lie in the sea), so one is kept only if it's
+ * within 5 km of the station it's named after (Woking Jn by Woking), else within 15 km of any
+ * station NaPTAN placed. In the 2024 BPLAN, of the points named after somewhere, 1,452 were within
+ * 5 km of it, 23 more by 15 km, and the rest mostly hundreds of km out; a remote line's points can
+ * be 15 km from a station (Beattock Summit). These only catch gross errors: BPLAN rounds most grid
+ * references to 100 m. Rounded to 5 places of decimals, about a metre.
  */
-export function compactPoints(stations: NaptanStation[], locations: RttLocation[], places: Places): Points {
+export function compactPoints(stations: NaptanStation[], locations: RttLocation[], places: Places, timingPoints: [string, number, number][] = []): Points & { dropped: string[] } {
   const crsOf = new Map<string, string>();
   for (const l of locations) if (l.longCode && l.shortCode) crsOf.set(l.longCode.toUpperCase(), l.shortCode.toUpperCase());
   const station = new Set(places.stations.map(([, c]) => c));
@@ -100,11 +109,35 @@ export function compactPoints(stations: NaptanStation[], locations: RttLocation[
     if (!code || found.has(code) || !same.every((s) => near(s, same[0]))) continue;
     found.set(code, [round(same[0].lat), round(same[0].lon)]);
   }
-  return { v: 1, points: [...found].map(([c, [y, x]]) => [c, y, x] as [string, number, number]).sort((p, q) => p[0].localeCompare(q[0])) };
+  // The stations NaPTAN placed, by name, to check BPLAN's points against.
+  const placed = places.stations.filter(([, c]) => found.has(c)).map(([n, c]) => ({ words: fold(n).split(" "), at: found.get(c)! }));
+  const nameOf = new Map(places.others.map(([n, c]) => [c, n]));
+  const dropped: string[] = [];
+  for (const [tiploc, lat, lon] of timingPoints) {
+    const crs = crsOf.get(tiploc);
+    const code = crs && station.has(crs) ? crs : other.has(tiploc) ? tiploc : undefined;
+    if (!code || found.has(code)) continue;
+    const at: [number, number] = [lat, lon];
+    const words = fold(nameOf.get(code) ?? "").split(" ");
+    // The station it's named after: the one whose whole name starts its name, the longest.
+    let namesake: (typeof placed)[number] | undefined;
+    for (const p of placed) if (p.words.length < words.length && p.words.every((w, i) => w === words[i]) && (!namesake || p.words.length > namesake.words.length)) namesake = p;
+    const ok = namesake ? km(namesake.at, at) <= NAMESAKE_KM : placed.some((p) => km(p.at, at) <= ANY_STATION_KM);
+    if (ok) found.set(code, [round(lat), round(lon)]);
+    else dropped.push(code);
+  }
+  return { dropped, v: 1, points: [...found].map(([c, [y, x]]) => [c, y, x] as [string, number, number]).sort((p, q) => p[0].localeCompare(q[0])) };
 }
 
-/** The most the shipped list may weigh: a few times what 2,600 stations take. */
-export const POINTS_MAX_BYTES = 400_000;
+/** How far a BPLAN point may be from the station it's named after, and from any station when it isn't. */
+export const NAMESAKE_KM = 5;
+export const ANY_STATION_KM = 15;
+
+/** Roughly how far apart two places are, in kilometres: near enough at the scale of Great Britain. */
+const km = (p: [number, number], q: [number, number]) => Math.hypot((p[0] - q[0]) * 111.2, (p[1] - q[1]) * 111.2 * Math.cos((p[0] * Math.PI) / 180));
+
+/** The most the shipped list may weigh: about twice what 2,600 stations and 5,000 timing points take. */
+export const POINTS_MAX_BYTES = 500_000;
 /** The fewest stations a list fit to ship has: there are about 2,600. */
 export const POINTS_MIN = 1_000;
 
