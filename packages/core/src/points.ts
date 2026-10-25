@@ -129,7 +129,11 @@ export function compactPoints(stations: NaptanStation[], locations: RttLocation[
   return { dropped, v: 1, points: [...found].map(([c, [y, x]]) => [c, y, x] as [string, number, number]).sort((p, q) => p[0].localeCompare(q[0])) };
 }
 
-/** How far a BPLAN point may be from the station it's named after, and from any station when it isn't. */
+/**
+ * How far a BPLAN point may be from the station it's named after, and from any station when it
+ * isn't. A point past these is left out of the map: when one is missing, look here first (the
+ * deploy's log lists them; docs/how-it-works.md, "If a point is missing from the map").
+ */
 export const NAMESAKE_KM = 5;
 export const ANY_STATION_KM = 15;
 

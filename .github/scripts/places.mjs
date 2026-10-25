@@ -70,7 +70,8 @@ else {
     const spot = (code) => points.points.find((p) => p[0] === code)?.slice(1).join(", ") ?? "not placed";
     const placedStations = places.stations.filter(([, c]) => points.points.some((p) => p[0] === c)).length;
     console.log(`${pointsOut}: ${placedStations} of ${places.stations.length} stations and ${points.points.length - placedStations} of ${places.others.length} other timing points placed, from ${stations.length} NaPTAN rail stops and ${bplan ? `BPLAN ${bplan.source}` : "no BPLAN"}, ${Math.round(pointsJson.length / 1024)} KB`);
-    if (dropped.length) console.log(`  left out ${dropped.length} BPLAN points too far from their station, or from any: ${dropped.slice(0, 12).join(", ")}${dropped.length > 12 ? " …" : ""}`);
+    // All of them: when a point is missing from the map, this is the first place to look (docs/how-it-works.md).
+    if (dropped.length) console.log(`  left out ${dropped.length} BPLAN points more than 5 km from the station they're named after, or 15 km from any: ${dropped.join(", ")}`);
     for (const code of ["WOK", "BKO", "CLJ", "WOKINGJ", "BRKWDLE"]) console.log(`  ${code}: ${spot(code)}`);
   }
 }
