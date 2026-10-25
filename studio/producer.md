@@ -25,3 +25,4 @@ What the studio has learned from your feedback, each with where it came from.
 - The site should have character: fun for children, and obviously about trains (a steam-train logo, a word mark): the producer, 2026-10-24, via /director.
 - Setting up a spot shouldn't need railway codes: search by name, and a spot can be a single station: the producer, 2026-10-24, via /director.
 - The map picker must not depend on a busy free server answering at the moment you tap: the producer, 2026-10-24 ("The map view has never worked for me").
+- Going back to a spot you've used before should be one tap, not a new search: the producer, 2026-10-25, via /director ("provide a memory of previous spots").
