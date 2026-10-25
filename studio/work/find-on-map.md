@@ -21,7 +21,8 @@ The map picker now asks OpenStreetMap's Overpass server on each tap, which has n
 - With one box filled, Find on map for the other opens centred on the filled point, zoomed in close enough to see the points around it. With none filled, it opens on the current spot if there is one, else near you if you allow it, else on Great Britain. "Pick on a map" opens centred the same way.
 - It fits one screen with no scroll at 390×844, 375×667 and 360×640, the card included; checked by the Tester, and on the producer's phone at their bridge (Brookwood, Woking).
 - Works in the demo on Pages (no Worker).
-- Credits NaPTAN where the dots show: "Contains public sector information licensed under the Open Government Licence v3.0", beside the OpenStreetMap credit.
+- Credits NaPTAN and Network Rail where the dots show, beside the OpenStreetMap credit: "Contains public sector information licensed under the Open Government Licence v3.0" and "Contains information of Network Rail Infrastructure Limited licensed under the Open Government Licence v3.0".
+- `points.json` (packed: read it with `unpackPoints`) is fetched only when the map opens, and kept on the phone (a service worker, or the Cache API) so the map's dots show with a weak signal at the bridge; a new deploy's file replaces it.
 
 ## Not this
 Tapping the track to work out how far along the spot is (the existing picker; `picker-offline`). Filtering points by type, or searching from the map (the search box does that).

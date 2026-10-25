@@ -20,7 +20,8 @@ const GB = { south: 49.8, north: 60.9, west: -8.7, east: 1.8 };
 /**
  * An Ordnance Survey grid reference (easting, northing in metres, OSGB36) as WGS84 latitude and
  * longitude: the inverse transverse Mercator on the Airy 1830 ellipsoid, then a Helmert
- * transform. Good to about 5 m, which is finer than BPLAN's eastings (often to 100 m).
+ * transform. Good to about a metre against NaPTAN's own conversions; BPLAN's grid references are
+ * coarser (most to 100 m, so a place can be 100 to 150 m out before any conversion).
  */
 export function osgbToLatLon(easting: number, northing: number): { lat: number; lon: number } {
   // The National Grid's projection.
@@ -94,6 +95,7 @@ export function bplanPoints(text: string): BplanPoints {
   const head = lines.find((l) => l.startsWith("PIF"))?.split("\t") ?? [];
   const day = (s: string | undefined) => s?.split(" ")[0] ?? "?";
   const source = head.length ? `${day(head[4])} to ${day(head[5])}, made ${day(head[8])}` : "unknown";
+  const starts = dmy(head[4]);
   const found = new Map<string, [number, number]>();
   for (const line of lines) {
     if (!line.startsWith("LOC\t")) continue;
@@ -101,7 +103,9 @@ export function bplanPoints(text: string): BplanPoints {
     const tiploc = f[2]?.trim().toUpperCase();
     const e = Number(f[6]);
     const n = Number(f[7]);
-    if (!tiploc || !/^[A-Z0-9]{3,7}$/.test(tiploc) || f[1] === "D" || f[5]?.trim()) continue;
+    // An end date before the file's own start means it's gone; one later is still in use.
+    const ended = dmy(f[5]);
+    if (!tiploc || !/^[A-Z0-9]{3,7}$/.test(tiploc) || f[1] === "D" || (ended !== undefined && (starts === undefined || ended < starts))) continue;
     if (!(e > 0 && e < 700000 && n > 0 && n < 1250000)) continue;
     const { lat, lon } = osgbToLatLon(e, n);
     if (lat < GB.south || lat > GB.north || lon < GB.west || lon > GB.east) continue;
@@ -109,6 +113,12 @@ export function bplanPoints(text: string): BplanPoints {
   }
   return { v: 1, source, points: [...found].map(([c, [y, x]]) => [c, y, x] as [string, number, number]).sort((p, q) => p[0].localeCompare(q[0])) };
 }
+
+/** "14-12-2024 23:59:59" (BPLAN's dates) as epoch milliseconds; undefined if blank. */
+const dmy = (s: string | undefined) => {
+  const m = s?.match(/(\d{2})-(\d{2})-(\d{4})/);
+  return m ? Date.UTC(Number(m[3]), Number(m[2]) - 1, Number(m[1])) : undefined;
+};
 
 /** The most the kept copy may weigh: about twice what 6,300 points take. */
 export const BPLAN_MAX_BYTES = 400_000;
@@ -138,6 +148,5 @@ export function bplanProblems(json: string, min = BPLAN_MIN): string[] {
 
 /** When the kept copy's BPLAN ran to ("14-12-2024" in its source), as epoch milliseconds; undefined if it doesn't say. */
 export function bplanEnds(source: string): number | undefined {
-  const m = source.match(/to (\d{2})-(\d{2})-(\d{4})/);
-  return m ? Date.UTC(Number(m[3]), Number(m[2]) - 1, Number(m[1])) : undefined;
+  return dmy(source.match(/to (\d{2}-\d{2}-\d{4})/)?.[1]);
 }

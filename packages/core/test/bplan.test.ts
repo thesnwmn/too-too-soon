@@ -28,8 +28,9 @@ const bplan = [
   "LOC\tA\tACTNLRG\tActon Lane Rec Sdgs GBRf\t11-06-2006 00:00:00\t\t666666\t666666\tM\t5\t72209\tN\t ",
   "LOC\tA\tARDWTMD\tArdwick T.M.D.\t12-06-2005 00:00:00\t\t1\t1\tM\t5\t1\tN\t ",
   "LOC\tA\tALDMCE\tAldermaston Tip (CE)\t12-12-2004 00:00:00\t\t654747\t634463\tM\t5\t1\tN\t ",
-  // Made up: a record that has ended.
+  // Made up: a record that has ended, and one that ends after the file starts (still in use).
   "LOC\tA\tGONEJN\tGone Jn\t01-01-1995 00:00:00\t01-01-2020 00:00:00\t500000\t158000\tT\t3\t1\tN\t ",
+  "LOC\tA\tSOONJN\tSoon Gone Jn\t01-01-1995 00:00:00\t01-09-2024 00:00:00\t500000\t158000\tT\t3\t1\tN\t ",
   "TLK\tA\tWOKING\tWOKINGJ\tUF\t ",
 ].join("\r\n");
 
@@ -39,12 +40,19 @@ describe("bplanPoints", () => {
   it("places each timing point with a real grid reference", () => {
     expect(kept.points).toEqual([
       ["BRKWOOD", 51.30327, -0.63576],
+      ["SOONJN", 51.31234, -0.56662],
       ["WOKING", 51.31762, -0.55785],
       ["WOKINGJ", 51.31113, -0.56217],
     ]);
   });
   it("leaves out none (0, 999999), placeholders (1, 666666), ones outside Great Britain, and ended ones", () => {
     for (const code of ["CLPHMJ1", "CLPHMJN", "ACTNLRG", "ARDWTMD", "ALDMCE", "GONEJN"]) expect(kept.points.map((p) => p[0])).not.toContain(code);
+  });
+  it("puts a station within 150 m of NaPTAN's: BPLAN rounds to 100 m", () => {
+    const metres = (p: number[], q: number[]) => Math.hypot((p[0] - q[0]) * 111_200, (p[1] - q[1]) * 111_200 * Math.cos((p[0] * Math.PI) / 180));
+    const at = (code: string) => kept.points.find((p) => p[0] === code)!.slice(1) as number[];
+    expect(metres(at("WOKING"), [51.31846934954, -0.55695962081])).toBeLessThan(150);
+    expect(metres(at("BRKWOOD"), [51.30375792694, -0.63574781605])).toBeLessThan(150);
   });
   it("gives nothing for something that isn't BPLAN", () => expect(bplanPoints("<html>login</html>")).toEqual({ v: 1, source: "unknown", points: [] }));
 });

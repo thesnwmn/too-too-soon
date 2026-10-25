@@ -9,7 +9,7 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { compactPlaces, placesProblems } from "../../packages/core/src/places.ts";
-import { compactPoints, naptanStations, pointsProblems } from "../../packages/core/src/points.ts";
+import { compactPoints, naptanStations, packPoints, pointsProblems } from "../../packages/core/src/points.ts";
 import { bplanProblems } from "../../packages/core/src/bplan.ts";
 
 const RTT = "https://data.rtt.io";
@@ -62,7 +62,7 @@ else {
   const bplan = bplanBad.length ? undefined : JSON.parse(bplanJson);
   if (!bplan) console.log(`::warning title=No junctions::BPLAN: ${bplanBad.join("; ")}. The map shows stations only.`);
   const { dropped, ...points } = compactPoints(stations, locations, places, bplan?.points ?? []);
-  const pointsJson = JSON.stringify(points);
+  const pointsJson = JSON.stringify(packPoints(points.points));
   const pointsBad = pointsProblems(pointsJson);
   if (pointsBad.length) noPoints(`The list doesn't look right (${pointsBad.join("; ")}).`);
   else {

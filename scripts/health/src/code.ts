@@ -167,7 +167,7 @@ export const points: Check = {
   id: "code/points",
   tier: 4,
   repro: `node -e "console.log(require('fs').statSync('${POINTS}').size)"`,
-  hint: "The points list is { v: 1, points: [[code, lat, lon]] }, at least POINTS_MIN of them, all in Great Britain, under POINTS_MAX_BYTES (packages/core/src/points.ts). It's made by .github/scripts/places.mjs from NaPTAN, which makes the same check before writing it.",
+  hint: "The points list is packed, { v: 2, codes, lat, lon } (packPoints), at least POINTS_MIN of them, all in Great Britain, under POINTS_MAX_BYTES (packages/core/src/points.ts). It's made by .github/scripts/places.mjs from NaPTAN, which makes the same check before writing it.",
   run({ root }) {
     const path = join(root, POINTS);
     if (!existsSync(path)) return pass("none made here");
