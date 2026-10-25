@@ -27,3 +27,4 @@ What the studio has learned from your feedback, each with where it came from.
 - The map picker must not depend on a busy free server answering at the moment you tap: the producer, 2026-10-24 ("The map view has never worked for me").
 - Going back to a spot you've used before should be one tap, not a new search: the producer, 2026-10-25, via /director ("provide a memory of previous spots").
 - The map should show every timing point clearly, with its codes when tapped, as a way to fill in the form; and the second point opens the map where the first one is: the producer, 2026-10-25, via /director ("A 'find on map'").
+- The map should show what's reliably placed: stations by default, with the other timing points (badly placed by BPLAN) behind a switch, off by default: the producer, 2026-10-25, via /director ("the timing points other than stations are terribly placed on the map").
