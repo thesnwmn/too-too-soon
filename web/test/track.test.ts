@@ -145,7 +145,6 @@ describe("findOnTiles", () => {
   });
 });
 
-
 /** Two layers in one tile: a tile's layers are just one after another. */
 const both = (a: ArrayBuffer, b: ArrayBuffer) => {
   const out = new Uint8Array(a.byteLength + b.byteLength);

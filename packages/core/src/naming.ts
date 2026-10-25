@@ -13,10 +13,13 @@ export interface NamedLine {
   brunnel?: string;
 }
 
-/** How far (metres) from the tap a crossing can be and still name the spot. */
+/** How far (metres) from the spot on the line a crossing can be and still name it. */
 export const NAME_REACH_M = 150;
 
-/** How near (metres) a bridge segment must cross the track to the named crossing to make it "… bridge". */
+/**
+ * How near (metres) a bridge segment must cross the track to the named crossing to make it "… bridge".
+ * A footbridge right beside a level crossing would make it a bridge too: rare, and a name you can change.
+ */
 const SAME_CROSSING_M = 30;
 
 /** Where segments p1–p2 and q1–q2 cross, in a flat frame round `o`; undefined if they don't. */

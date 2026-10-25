@@ -14,7 +14,7 @@ The producer, 2026-10-25, via /director: "add auto-name filling, using point nam
 ## Done when
 - The Name box fills in as soon as the places are picked (search, Find on map, or Pick on a map), and keeps up as they change (another place, One place / Between two, Swap), until you type a name of your own. What you type is never overwritten; clearing the box hands it back to the made-up name.
 - One place: the place's name ("Woking").
-- Between two, tapped on the map: the road or path that crosses the line nearest the tap, from the map's own vector tiles (OpenFreeMap's `transportation_name` / `transportation` layers, no extra request), as "<road> bridge" when it goes over the line (`brunnel=bridge`) and "<road>" otherwise. No named road within about 150 m of the tap: "Between A and B".
+- Between two, tapped on the map: the road or path that crosses the line nearest the tap, from the map's own vector tiles (OpenFreeMap's `transportation_name` / `transportation` layers, no extra request), as "<road> bridge" when it goes over the line (`brunnel=bridge`) and "<road>" otherwise. No named road within about 150 m of the spot on the line (the tap, snapped onto the track): "Between A and B".
 - Between two, typed in: "Between A and B", as now.
 - A recent spot or a shared link keeps the name it was saved with.
 - Tests for the naming (one place, two, road found, road not found, a typed name kept) as pure functions with fixture features; checked at 390×844 by the Tester, including a map tap at Brookwood–Woking.

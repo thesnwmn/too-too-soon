@@ -229,7 +229,7 @@ function setupView(): string {
   // One place or between two: as the draft (or the map) says, else as the spot is; a new spot starts with one.
   const mode = d?.mode ?? (d?.b || s?.b ? "two" : "one");
   // The name: the made-up one (auto-name) until you type your own; a saved spot's is its own unless it's the made-up one.
-  const now = d ?? (s ? { mode, a: s.a, b: s.b ?? "", an: s.aName ?? "", bn: s.bName ?? "", f: String(s.f), name: s.name } : undefined);
+  const now = d ?? (s ? { mode, a: s.a, b: s.b ?? "", an: s.aName ?? "", bn: s.bName ?? "", f: String(s.f ?? ""), name: s.name } : undefined);
   const auto = autoOn(now);
   const made = autoName(now);
   return `<header><h1 class="brand">${logo}${wordmark()}</h1>${s ? `<button type="button" id="cancel" class="ghost">Cancel</button>` : ""}</header>
