@@ -100,9 +100,13 @@ describe("code/places", () => {
     expect(places.run(ctx(tmpDir({ "web/public/places.json": good }))).status).toBe("pass");
   });
   it("fails on the wrong shape, or a list that's far too big", () => {
-    expect(places.run(ctx(tmpDir({ "web/public/places.json": '{"v":1,"stations":[],"others":[]}' }))).detail).toBe("no stations");
-    expect(places.run(ctx(tmpDir({ "web/public/places.json": JSON.stringify({ v: 1, stations: [["Woking", "wok"]], others: [] }) }))).detail).toBe("a station isn't [name, code]");
+    expect(places.run(ctx(tmpDir({ "web/public/places.json": '{"v":1,"stations":[],"others":[]}' }))).detail).toBe("web/public/places.json: no stations");
+    expect(places.run(ctx(tmpDir({ "web/public/places.json": JSON.stringify({ v: 1, stations: [["Woking", "wok"]], others: [] }) }))).detail).toBe("web/public/places.json: a station isn't [name, code]");
     expect(places.run(ctx(tmpDir({ "web/public/places.json": "x".repeat(1_600_000) }))).status).toBe("fail");
+  });
+  it("checks the demo's small list too", () => {
+    expect(places.run(ctx(tmpDir({ "web/demo/places.json": good }))).status).toBe("pass");
+    expect(places.run(ctx(tmpDir({ "web/demo/places.json": "{}" }))).detail).toMatch(/^web\/demo\/places.json: /);
   });
 });
 
@@ -114,11 +118,16 @@ describe("code/points", () => {
     expect(at(JSON.stringify(list(1200))).status).toBe("pass");
   });
   it("fails on a list with almost none placed, a point outside Great Britain, or the wrong shape", () => {
-    expect(at(JSON.stringify(list(5))).detail).toBe("only 5 points, fewer than 1000");
+    expect(at(JSON.stringify(list(5))).detail).toBe("web/public/points.json: only 5 points, fewer than 1000");
     const away = list(1200);
     away.lon[0] += 1_200_000;
-    expect(at(JSON.stringify(away)).detail).toMatch(/^P\d{4} is outside Great Britain/);
-    expect(at('{"v":1,"points":[]}').detail).toBe("version 1, not 2");
+    expect(at(JSON.stringify(away)).detail).toMatch(/^web\/public\/points.json: P\d{4} is outside Great Britain/);
+    expect(at('{"v":1,"points":[]}').detail).toBe("web/public/points.json: version 1, not 2");
+  });
+  it("checks the demo's small list too, with at least 10 points", () => {
+    const demo = (json: string) => points.run(ctx(tmpDir({ "web/demo/points.json": json })));
+    expect(demo(JSON.stringify(list(14))).status).toBe("pass");
+    expect(demo(JSON.stringify(list(3))).detail).toBe("web/demo/points.json: only 3 points, fewer than 10");
   });
 });
 

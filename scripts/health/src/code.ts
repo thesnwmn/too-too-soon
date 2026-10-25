@@ -151,14 +151,22 @@ export const places: Check = {
   id: "code/places",
   tier: 4,
   repro: `node -e "console.log(require('fs').statSync('${PLACES}').size)"`,
-  hint: "The place list the set-up form searches is { v: 1, stations: [[name, CRS]], others: [[name, TIPLOC]] } and under PLACES_MAX_BYTES (packages/core/src/places.ts). It's made by .github/scripts/places.mjs, which makes the same check before writing it.",
+  hint: "The place list the set-up form searches is { v: 1, stations: [[name, CRS]], others: [[name, TIPLOC]] } and under PLACES_MAX_BYTES (packages/core/src/places.ts). It's made by .github/scripts/places.mjs, which makes the same check before writing it; the demo's small one is web/demo/places.json.",
   run({ root }) {
-    const path = join(root, PLACES);
-    if (!existsSync(path)) return pass("none made here");
-    const problems = placesProblems(readFileSync(path, "utf8"));
-    return problems.length ? fail(problems.join("; ")) : pass(`${Math.round(readFileSync(path).length / 1024)} KB`);
+    const made = join(root, PLACES);
+    const demo = join(root, DEMO_PLACES);
+    const problems = [
+      ...(existsSync(made) ? placesProblems(readFileSync(made, "utf8")).map((p) => `${PLACES}: ${p}`) : []),
+      ...(existsSync(demo) ? placesProblems(readFileSync(demo, "utf8")).map((p) => `${DEMO_PLACES}: ${p}`) : []),
+    ];
+    if (problems.length) return fail(problems.join("; "));
+    return pass(existsSync(made) ? `${Math.round(readFileSync(made).length / 1024)} KB` : "none made here");
   },
 };
+
+/** The demo's small place list and points, for GitHub Pages (web/demo/README.md). */
+export const DEMO_PLACES = "web/demo/places.json";
+export const DEMO_POINTS = "web/demo/points.json";
 
 /** Where each station is on the map, made beside the place list at deploy time (.github/scripts/places.mjs). */
 export const POINTS = "web/public/points.json";
@@ -167,12 +175,16 @@ export const points: Check = {
   id: "code/points",
   tier: 4,
   repro: `node -e "console.log(require('fs').statSync('${POINTS}').size)"`,
-  hint: "The points list is packed, { v: 2, codes, lat, lon } (packPoints), at least POINTS_MIN of them, all in Great Britain, under POINTS_MAX_BYTES (packages/core/src/points.ts). It's made by .github/scripts/places.mjs from NaPTAN, which makes the same check before writing it.",
+  hint: "The points list is packed, { v: 2, codes, lat, lon } (packPoints), at least POINTS_MIN of them (10 in the demo's), all in Great Britain, under POINTS_MAX_BYTES (packages/core/src/points.ts). It's made by .github/scripts/places.mjs from NaPTAN, which makes the same check before writing it; the demo's small one is web/demo/points.json.",
   run({ root }) {
-    const path = join(root, POINTS);
-    if (!existsSync(path)) return pass("none made here");
-    const problems = pointsProblems(readFileSync(path, "utf8"));
-    return problems.length ? fail(problems.join("; ")) : pass(`${Math.round(readFileSync(path).length / 1024)} KB`);
+    const made = join(root, POINTS);
+    const demo = join(root, DEMO_POINTS);
+    const problems = [
+      ...(existsSync(made) ? pointsProblems(readFileSync(made, "utf8")).map((p) => `${POINTS}: ${p}`) : []),
+      ...(existsSync(demo) ? pointsProblems(readFileSync(demo, "utf8"), 10).map((p) => `${DEMO_POINTS}: ${p}`) : []),
+    ];
+    if (problems.length) return fail(problems.join("; "));
+    return pass(existsSync(made) ? `${Math.round(readFileSync(made).length / 1024)} KB` : "none made here");
   },
 };
 

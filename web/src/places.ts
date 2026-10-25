@@ -22,7 +22,7 @@ const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`)
 export function placeField(k: "a" | "b", labelHtml: string, values: { q?: string; code?: string; name?: string }): string {
   const shown = values.q ?? values.name ?? values.code ?? "";
   return `<div class="place">
-      <label for="${k}q">${labelHtml}</label>
+      <div class="place-head"><label for="${k}q">${labelHtml}</label><button type="button" class="ghost find" data-box="${k}" aria-describedby="${k}q">Find on map</button></div>
       <input id="${k}q" name="${k}q" value="${esc(shown)}" placeholder="Search: a station or junction" autocomplete="off" autocapitalize="words" spellcheck="false"
         role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="${k}-list">
       <input type="hidden" name="${k}" value="${esc(values.code ?? "")}">

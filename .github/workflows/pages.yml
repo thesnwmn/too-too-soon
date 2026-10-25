@@ -60,6 +60,8 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # No token here for the deploy's place list and points: the demo's small sample instead (web/demo/README.md).
+      - run: cp web/demo/places.json web/demo/points.json web/public/
       - run: pnpm --filter @too-too-soon/web build
         env:
           VITE_DEMO: "1"
