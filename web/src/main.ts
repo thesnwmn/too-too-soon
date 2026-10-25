@@ -3,6 +3,7 @@
 import { withDemoClasses, demoLineUps, type ErrorResponse, type NextResponse, parseSpot, type Pass, predictAt, predictPasses, type Spot, spotParams, upcoming } from "@too-too-soon/core";
 import { logo, wordmark } from "./brand.ts";
 import { loadPlaces, placeField, resolvePlace, wirePlaceField } from "./places.ts";
+import { fillDraft } from "./fill.ts";
 import { forget, recentSpots, remember } from "./recent.ts";
 import { about, clock, towardsText, countdown, direction, inMinutes, refreshAfter, stopping, sureness, what } from "./format.ts";
 
@@ -402,9 +403,8 @@ async function pick(box?: "a" | "b"): Promise<void> {
         state.draft = { ...state.draft, name: name || `Between ${picked.aName} and ${picked.bName}`, a: picked.a, b: picked.b, f: String(picked.f), an: picked.aName, bn: picked.bName, aq: picked.aName, bq: picked.bName, mode: "two" };
       } else if (picked) {
         // A dot fills its box, as picking it from the search does; the card may also say one place or two.
-        const k = picked.box;
         state.error = undefined;
-        state.draft = { ...state.draft, [k]: picked.code, [`${k}n`]: picked.name, [`${k}q`]: picked.name, mode: picked.mode ?? state.draft?.mode ?? (k === "b" ? "two" : "one") };
+        state.draft = fillDraft(state.draft, picked);
       }
       render();
       // Back on the form: focus where the map was opened from, so a keyboard or screen reader carries on there.

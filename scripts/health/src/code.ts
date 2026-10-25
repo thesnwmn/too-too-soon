@@ -175,7 +175,7 @@ export const points: Check = {
   id: "code/points",
   tier: 4,
   repro: `node -e "console.log(require('fs').statSync('${POINTS}').size)"`,
-  hint: "The points list is packed, { v: 2, codes, lat, lon } (packPoints), at least POINTS_MIN of them (10 in the demo's), all in Great Britain, under POINTS_MAX_BYTES (packages/core/src/points.ts). It's made by .github/scripts/places.mjs from NaPTAN, which makes the same check before writing it; the demo's small one is web/demo/points.json.",
+  hint: "The points list is packed, { v: 2, codes, lat, lon } (packPoints), at least POINTS_MIN of them (10 in the demo's), all in Great Britain, under POINTS_MAX_BYTES (packages/core/src/points.ts). It's made by .github/scripts/places.mjs from NaPTAN, which makes the same check before writing it; the demo's small one is web/demo/points.json (if web/public/points.json has only 14, it's the demo's, copied in by hand to try the Pages build: delete it).",
   run({ root }) {
     const made = join(root, POINTS);
     const demo = join(root, DEMO_POINTS);

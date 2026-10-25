@@ -9,6 +9,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 // doesn't have: so Vite bundles the worker (with what it imports) and MapLibre is told where.
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import { codeLabel, KIND_TEXT, type Located, locate, type MapPoint, mapCentre, type OsmElement, overpassQuery, pointsGeoJson } from "@too-too-soon/core";
+import type { Filled } from "./fill.ts";
 import { loadMapPoints } from "./points.ts";
 
 maplibregl.setWorkerUrl(workerUrl);
@@ -29,14 +30,6 @@ export interface Picked {
   bName: string;
 }
 
-/** A dot used to fill a box: `mode` is set when the card said which ("Use as A"), left as it is for Find on map. */
-export interface Filled {
-  box: "a" | "b";
-  code: string;
-  name: string;
-  mode?: "one" | "two";
-}
-
 export interface PickerOptions {
   /** Find on map for this box: tapping the track does nothing, and a dot's card says "Use this". */
   box?: "a" | "b";
@@ -49,8 +42,12 @@ export interface PickerOptions {
   spotB?: string;
 }
 
-/** The dots' credit, as the Open Government Licence asks (NaPTAN's stations, Network Rail's timing points), beside OpenStreetMap's. */
-const CREDITS = "Points: NaPTAN and Network Rail Infrastructure Ltd, Open Government Licence v3.0";
+/** The dots' credits, beside OpenStreetMap's: the Open Government Licence's own words for NaPTAN's stations and Network Rail's timing points, and Realtime Trains for their names. */
+const CREDITS = [
+  "Contains public sector information licensed under the Open Government Licence v3.0",
+  "Contains information of Network Rail Infrastructure Limited licensed under the Open Government Licence v3.0",
+  "Names: Realtime Trains",
+];
 const KIND_COLOUR = { station: "#124a28", junction: "#b45309", other: "#64748b" };
 
 async function ask(lat: number, lon: number, radius: number, signal: AbortSignal): Promise<OsmElement[]> {
@@ -151,7 +148,11 @@ export function openPicker(root: HTMLElement, opts: PickerOptions, done: (result
     status.textContent = finding ? "Tap a dot to see what it is, then Use this." : "Tap a dot to use it, or zoom in to where you watch from and tap the track.";
   });
   const card = root.querySelector<HTMLElement>("#pick-card")!;
-  const hideCard = () => (card.hidden = true);
+  const hideCard = (focusMap = false) => {
+    card.hidden = true;
+    // Closed by keyboard or ✕: focus back on the map, not lost.
+    if (focusMap) map.getCanvas().focus();
+  };
   const showCard = (p: MapPoint) => {
     const uses = finding
       ? `<button type="button" data-use="${opts.box}">Use this</button>`
@@ -162,16 +163,17 @@ export function openPicker(root: HTMLElement, opts: PickerOptions, done: (result
       <div class="card-uses">${uses}</div>`;
     card.hidden = false;
     card.querySelector<HTMLButtonElement>("[data-use]")!.focus();
-    card.querySelector(".card-close")!.addEventListener("click", hideCard);
+    card.querySelector(".card-close")!.addEventListener("click", () => hideCard(true));
     for (const b of card.querySelectorAll<HTMLButtonElement>("[data-use]"))
       b.addEventListener("click", () => close({ box: b.dataset.use as "a" | "b", code: p.code, name: p.name, mode: b.dataset.mode as "one" | "two" | undefined }));
   };
-  card.addEventListener("keydown", (e) => e.key === "Escape" && hideCard());
+  card.addEventListener("keydown", (e) => e.key === "Escape" && hideCard(true));
 
   /** A dot (or a cluster of them) under a tap, with room for a finger: true when it took the tap. */
   const tappedDot = (e: maplibregl.MapMouseEvent): boolean => {
     if (!map.getLayer("dots")) return false;
-    const r = 16;
+    // Room for a finger on Find on map; less on Pick on a map, so a tap on the track beside a dot is still a track tap.
+    const r = finding ? 16 : 8;
     const hits = map.queryRenderedFeatures([[e.point.x - r, e.point.y - r], [e.point.x + r, e.point.y + r]], { layers: ["dots", "dot-clusters"] });
     if (!hits.length) return false;
     const cluster = hits.find((f) => f.properties?.cluster);
