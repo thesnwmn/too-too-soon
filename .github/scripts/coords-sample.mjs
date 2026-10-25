@@ -19,10 +19,14 @@ if (naptan) {
   grepLines(naptan, /9100(WOKING|BRKWOOD|CLPHMJ|WOKINGJ)/);
 }
 
-// BPLAN: Network Rail's geography, linked from the Open Rail Data wiki.
-for (const page of ["https://wiki.openraildata.com/index.php/BPLAN_Geography_Data", "https://wiki.openraildata.com/index.php?title=BPLAN_Geography_Data&action=raw"]) {
-  const w = await look("Open Rail Data wiki: BPLAN", page);
-  for (const m of new Set(w.match(/https?:\/\/[^\s"'<>\]|]+/g) ?? [])) if (/networkrail|bplan|geograph|zip|gz|\.txt/i.test(m)) console.log("  link: " + m);
-  grepLines(w, /easting|download|LOC\b/i, 15);
+// BPLAN: Network Rail's geography, linked from the Open Rail Data wiki (a 403 to a bot's user agent).
+const BROWSER = { "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36", Accept: "text/html,*/*" };
+for (const page of ["https://wiki.openraildata.com/index.php?title=BPLAN_Geography_Data&action=raw", "https://wiki.openraildata.com/index.php/BPLAN_Geography_Data", "https://wiki.openraildata.com/index.php?title=Reference_Data&action=raw"]) {
+  const r = await fetch(page, { headers: BROWSER }).catch(() => undefined);
+  const w = r?.ok ? await r.text() : "";
+  console.log(`\n## ${page}: ${r?.status}, ${w.length} chars`);
+  for (const m of new Set(w.match(/https?:\/\/[^\s"'<>\]|]+/g) ?? [])) if (/networkrail|bplan|geograph|zip|gz|\.txt|github/i.test(m)) console.log("  link: " + m);
+  grepLines(w, /bplan|easting|download/i, 20);
 }
-await look("Network Rail open data feeds", "https://publicdatafeeds.networkrail.co.uk/");
+const nr = await look("Network Rail open data feeds", "https://publicdatafeeds.networkrail.co.uk/");
+console.log(nr.slice(0, 1500));
