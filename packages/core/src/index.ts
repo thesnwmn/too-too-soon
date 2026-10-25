@@ -9,3 +9,4 @@ export * from "./points.ts";
 export * from "./bplan.ts";
 export * from "./mappoints.ts";
 export * from "./tiles.ts";
+export * from "./naming.ts";

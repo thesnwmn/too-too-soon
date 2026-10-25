@@ -14,7 +14,7 @@ import { codeLabel, KIND_TEXT, type Located, locate, type MapPoint, mapCentre, t
 import type { Filled } from "./fill.ts";
 import { loadMapPoints } from "./points.ts";
 import { othersNeeded, othersOn, setOthersOn, splitDots } from "./toggle.ts";
-import { findOnTiles, type TileSource } from "./track.ts";
+import { findOnTiles, nameOnTiles, type TileSource } from "./track.ts";
 
 /** localStorage, or nothing when the browser blocks it (private browsing). */
 function storage(): Storage | undefined {
@@ -49,6 +49,8 @@ export interface Picked {
   f: number;
   aName: string;
   bName: string;
+  /** The road crossing the line there, to name the spot after (auto-name), when the tiles have one. */
+  road?: string;
 }
 
 export interface PickerOptions {
@@ -331,9 +333,13 @@ export function openPicker(root: HTMLElement, opts: PickerOptions, done: (result
         ],
         { padding: 60, maxZoom: 16 },
       );
-      picked = { a: found.a.code, b: found.b.code, f: Math.round(found.f * 100) / 100, aName: found.a.name, bName: found.b.name };
       const km = (m: number) => (m < 1000 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toFixed(1)} km`);
-      status.innerHTML = `Between <b>${esc(found.a.name)}</b> (${km(found.a.along)}) and <b>${esc(found.b.name)}</b> (${km(found.b.along)}).`;
+      const between = `Between <b>${esc(found.a.name)}</b> (${km(found.a.along)}) and <b>${esc(found.b.name)}</b> (${km(found.b.along)}).`;
+      // The road there names the spot; looked for in the same tiles, so it's quick (and skipped without them).
+      const road = src ? await nameOnTiles(src, found.snapped, signal) : undefined;
+      if (mine !== asking) return;
+      picked = { a: found.a.code, b: found.b.code, f: Math.round(found.f * 100) / 100, aName: found.a.name, bName: found.b.name, road };
+      status.innerHTML = road ? `<b>${esc(road)}</b>: ${between.replace("Between", "between")}` : between;
       use.disabled = false;
     } catch (err) {
       if (mine !== asking || (err as Error).name === "AbortError") return;

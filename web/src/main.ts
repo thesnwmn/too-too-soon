@@ -3,7 +3,7 @@
 import { withDemoClasses, demoLineUps, type ErrorResponse, type NextResponse, parseSpot, type Pass, predictAt, predictPasses, type Spot, spotParams, upcoming } from "@too-too-soon/core";
 import { logo, wordmark } from "./brand.ts";
 import { loadPlaces, placeField, resolvePlace, wirePlaceField } from "./places.ts";
-import { fillDraft } from "./fill.ts";
+import { autoName, autoOn, fillDraft, tapDraft } from "./fill.ts";
 import { forget, recentSpots, remember } from "./recent.ts";
 import { about, clock, towardsText, countdown, direction, inMinutes, refreshAfter, stopping, sureness, what } from "./format.ts";
 
@@ -228,6 +228,10 @@ function setupView(): string {
   const val = (k: string, x: string | number | undefined) => v(d ? d[k] : x);
   // One place or between two: as the draft (or the map) says, else as the spot is; a new spot starts with one.
   const mode = d?.mode ?? (d?.b || s?.b ? "two" : "one");
+  // The name: the made-up one (auto-name) until you type your own; a saved spot's is its own unless it's the made-up one.
+  const now = d ?? (s ? { mode, a: s.a, b: s.b ?? "", an: s.aName ?? "", bn: s.bName ?? "", f: String(s.f), name: s.name } : undefined);
+  const auto = autoOn(now);
+  const made = autoName(now);
   return `<header><h1 class="brand">${logo}${wordmark()}</h1>${s ? `<button type="button" id="cancel" class="ghost">Cancel</button>` : ""}</header>
     ${yourSpots()}
     <p class="intro">How long till the next too too? Set up where you watch trains from: one station or junction, or a spot between two (a bridge, say). Search by name, or tap it on a map.</p>
@@ -247,7 +251,8 @@ function setupView(): string {
           <input type="range" name="f" min="0" max="1" step="0.01" value="${val("f", s?.b ? s.f : 0.5)}">
         </label>
       </div>
-      <label>Name <input name="name" value="${val("name", s?.name)}" placeholder="${mode === "one" ? "Named after the place" : "Our bridge"}" maxlength="60"></label>
+      <label>Name <input name="name" value="${v(auto ? made : now?.name)}" placeholder="${v(made || (mode === "one" ? "Named after the place" : "Our bridge"))}" maxlength="60"></label>
+      <input type="hidden" name="auto" value="${auto ? "1" : "0"}"><input type="hidden" name="rn" value="${val("rn", "")}"><input type="hidden" name="rfor" value="${val("rfor", "")}">
       <button type="submit">Show the trains</button>
     </form>
     <p class="intro"><a href="?demo">Try the demo</a> to see what it looks like.</p>`;
@@ -303,6 +308,7 @@ function render(): void {
     const f = field("f");
     f.value = String(Math.round((1 - Number(f.value)) * 100) / 100);
     document.getElementById("fout")!.textContent = `${Math.round(Number(f.value) * 100)}%`;
+    form.dispatchEvent(new Event("change"));
   });
   document.getElementById("cancel")?.addEventListener("click", () => {
     state.editing = false;
@@ -318,11 +324,18 @@ function render(): void {
     wirePlaceField(form, "a");
     wirePlaceField(form, "b");
     const nameBox = form.elements.namedItem("name") as HTMLInputElement;
-    for (const r of form.querySelectorAll<HTMLInputElement>("input[name=mode]"))
-      r.addEventListener("change", () => {
-        form.dataset.mode = r.value;
-        nameBox.placeholder = r.value === "one" ? "Named after the place" : "Our bridge";
-      });
+    const autoBox = form.elements.namedItem("auto") as HTMLInputElement;
+    // The made-up name follows the places, the mode and the slider, until you type your own.
+    const remake = () => {
+      const made = autoName(Object.fromEntries([...new FormData(form)].map(([k, x]) => [k, String(x)])));
+      nameBox.placeholder = made || (form.dataset.mode === "one" ? "Named after the place" : "Our bridge");
+      if (autoBox.value === "1") nameBox.value = made;
+    };
+    for (const ev of ["input", "change"]) form.addEventListener(ev, (e) => e.target !== nameBox && remake());
+    // Typing a name keeps it; emptying the box hands it back to the made-up one, once you've left it.
+    nameBox.addEventListener("input", () => (autoBox.value = nameBox.value.trim() ? "0" : "1"));
+    nameBox.addEventListener("blur", () => autoBox.value === "1" && remake());
+    for (const r of form.querySelectorAll<HTMLInputElement>("input[name=mode]")) r.addEventListener("change", () => (form.dataset.mode = r.value));
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
       const fd = new FormData(form);
@@ -389,7 +402,6 @@ async function pick(box?: "a" | "b"): Promise<void> {
   // Keep what's typed, so Cancel (or a pick) comes back to it.
   keepDraft();
   const d = state.draft ?? {};
-  const name = (d.name ?? "").trim();
   const two = d.mode === "two";
   const label = box === "b" ? "timing point B" : two ? "timing point A" : "a station or junction";
   state.picking = true;
@@ -400,7 +412,7 @@ async function pick(box?: "a" | "b"): Promise<void> {
       state.picking = false;
       if (picked && "f" in picked) {
         state.error = undefined;
-        state.draft = { ...state.draft, name: name || `Between ${picked.aName} and ${picked.bName}`, a: picked.a, b: picked.b, f: String(picked.f), an: picked.aName, bn: picked.bName, aq: picked.aName, bq: picked.bName, mode: "two" };
+        state.draft = tapDraft(state.draft, picked);
       } else if (picked) {
         // A dot fills its box, as picking it from the search does; the card may also say one place or two.
         state.error = undefined;
