@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { icons, mapLazy, places, points, rttHost, noDom, noToken, pngSize, typecheck, wrangler } from "../src/code.ts";
+import { bplanAt, icons, mapLazy, places, points, rttHost, noDom, noToken, pngSize, typecheck, wrangler } from "../src/code.ts";
 import { ctx, fakeShell, tmpDir } from "./fixture.ts";
+import { packPoints } from "../../../packages/core/src/points.ts";
 
 describe("code/typecheck (and the other pnpm runs)", () => {
   it("passes when the script does", () => expect(typecheck.run(ctx(tmpDir(), { sh: fakeShell({ "pnpm typecheck": {} }) })).status).toBe("pass"));
@@ -106,15 +107,47 @@ describe("code/places", () => {
 });
 
 describe("code/points", () => {
-  const list = (n: number) => ({ v: 1, points: Array.from({ length: n }, (_, i) => [`P${String(i).padStart(4, "0")}`, 51.3, -0.55]) });
+  const list = (n: number) => packPoints(Array.from({ length: n }, (_, i) => [`P${String(i).padStart(4, "0")}`, 51.3, -0.55] as [string, number, number]));
+  const at = (json?: string) => points.run(ctx(tmpDir(json === undefined ? {} : { "web/public/points.json": json })));
   it("passes with no list made, or a good one", () => {
-    expect(points.run(ctx(tmpDir())).status).toBe("pass");
-    expect(points.run(ctx(tmpDir({ "web/public/points.json": JSON.stringify(list(1200)) }))).status).toBe("pass");
+    expect(at().status).toBe("pass");
+    expect(at(JSON.stringify(list(1200))).status).toBe("pass");
   });
-  it("fails on a list with almost none placed, or a point outside Great Britain", () => {
-    expect(points.run(ctx(tmpDir({ "web/public/points.json": JSON.stringify(list(5)) }))).detail).toBe("only 5 points, fewer than 1000");
+  it("fails on a list with almost none placed, a point outside Great Britain, or the wrong shape", () => {
+    expect(at(JSON.stringify(list(5))).detail).toBe("only 5 points, fewer than 1000");
     const away = list(1200);
-    away.points[0] = ["WOK", 51.3, 120];
-    expect(points.run(ctx(tmpDir({ "web/public/points.json": JSON.stringify(away) }))).detail).toBe("WOK is outside Great Britain (51.3, 120)");
+    away.lon[0] += 1_200_000;
+    expect(at(JSON.stringify(away)).detail).toMatch(/^P\d{4} is outside Great Britain/);
+    expect(at('{"v":1,"points":[]}').detail).toBe("version 1, not 2");
+  });
+});
+
+describe("code/bplan", () => {
+  const kept = (n: number, source = "02-06-2024 to 14-12-2024, made 24-05-2024") => JSON.stringify({ v: 1, source, points: Array.from({ length: n }, (_, i) => [`T${String(i).padStart(4, "0")}`, 51.3, -0.56]) });
+  const check = bplanAt(() => Date.UTC(2026, 9, 25));
+  const at = (json?: string) => check.run(ctx(tmpDir(json === undefined ? {} : { "packages/core/data/bplan-points.json": json })));
+  it("passes with none kept, or a good one", () => {
+    expect(at().status).toBe("pass");
+    expect(at(kept(3500))).toEqual({ status: "pass", detail: "BPLAN 02-06-2024 to 14-12-2024, made 24-05-2024" });
+  });
+  it("fails a copy with almost nothing in it, or a point outside Great Britain", () => {
+    expect(at(kept(10)).detail).toBe("only 10 points, fewer than 3000");
+    const away = JSON.parse(kept(3500));
+    away.points[0] = ["ACTNLRG", 55.8195, 2.25563];
+    expect(at(JSON.stringify(away)).status).toBe("fail");
+  });
+  it("fails the wrong shape: a version, a source, a TIPLOC or a point's length", () => {
+    const good = JSON.parse(kept(3500));
+    expect(at(JSON.stringify({ ...good, v: 3 })).detail).toBe("version 3, not 1");
+    expect(at(JSON.stringify({ ...good, source: "" })).detail).toBe("no source");
+    const badCode = JSON.parse(kept(3500));
+    badCode.points[0] = ["woking jn", 51.3, -0.56];
+    expect(at(JSON.stringify(badCode)).detail).toMatch(/isn't \[TIPLOC, lat, lon\]/);
+    const short = JSON.parse(kept(3500));
+    short.points[0] = ["WOKINGJ", 51.3];
+    expect(at(JSON.stringify(short)).detail).toMatch(/isn't \[TIPLOC, lat, lon\]/);
+  });
+  it("warns once it's two years past its end", () => {
+    expect(at(kept(3500, "01-06-2023 to 10-12-2023, made 20-05-2023")).status).toBe("warn");
   });
 });

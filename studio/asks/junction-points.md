@@ -1,7 +1,7 @@
 ---
 title: Junctions on the map need Network Rail's list. Download it once for us?
 from: engineer
-status: open
+status: answered
 blocks: [map-junctions]
 default: Stations only on the map. Junctions and other timing points are still found by name in the search.
 expires: after 3 sessions
@@ -24,4 +24,4 @@ Unchecked: sessions can't reach these sites, so the names may have moved.
 3. **To us:** drop the zip in a session, or attach it to a new GitHub issue in this repo, titled "BPLAN".
 
 ## Answer
-2026-10-25, partly: the producer, worried about the deploy holding an email and password, asked whether the file could be downloaded once and kept instead: "Yes" to the studio doing it that way. Still open: whether and when they download it.
+2026-10-25, partly: the producer, worried about the deploy holding an email and password, asked whether the file could be downloaded once and kept instead: "Yes" to the studio doing it that way. Then they sent an older BPLAN (`Geography_20240602_to_20241214_from_20240524.txt.gz`, 11,886 locations, 6,302 with a place) in a session, while getting the current one.

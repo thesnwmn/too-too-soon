@@ -8,7 +8,8 @@
     "board": "node studio/board.ts",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
-    "build": "pnpm -r build"
+    "build": "pnpm -r build",
+    "bplan": "node scripts/bplan.mjs"
   },
   "devDependencies": {
     "typescript": "^7.0.2",

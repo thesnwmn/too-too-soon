@@ -21,7 +21,8 @@ The map picker now asks OpenStreetMap's Overpass server on each tap, which has n
 - With one box filled, Find on map for the other opens centred on the filled point, zoomed in close enough to see the points around it. With none filled, it opens on the current spot if there is one, else near you if you allow it, else on Great Britain. "Pick on a map" opens centred the same way.
 - It fits one screen with no scroll at 390×844, 375×667 and 360×640, the card included; checked by the Tester, and on the producer's phone at their bridge (Brookwood, Woking).
 - Works in the demo on Pages (no Worker).
-- Credits NaPTAN where the dots show: "Contains public sector information licensed under the Open Government Licence v3.0", beside the OpenStreetMap credit.
+- Credits NaPTAN and Network Rail where the dots show, beside the OpenStreetMap credit: "Contains public sector information licensed under the Open Government Licence v3.0" and "Contains information of Network Rail Infrastructure Limited licensed under the Open Government Licence v3.0".
+- `points.json` (packed: read it with `unpackPoints`) is fetched only when the map opens, and kept on the phone (a service worker, or the Cache API) so the map's dots show with a weak signal at the bridge; a new deploy's file replaces it.
 
 ## Not this
 Tapping the track to work out how far along the spot is (the existing picker; `picker-offline`). Filtering points by type, or searching from the map (the search box does that).
@@ -30,3 +31,4 @@ Tapping the track to work out how far along the spot is (the existing picker; `p
 - 2026-10-25 shaped by the Director from the producer's /director. Defaults the producer can change: a button on each box, the card shows the codes and kind, the map opens on the filled point.
 - 2026-10-25 the producer, adding to it: "from any point on the picker it can jump to filling the form. So you can use the map as a 'pick a specific spot' (when we make that work) or a picker for filling the form and the user does the %age bit themselves if using two points." Added to Done when.
 - 2026-10-25 ready: `point-coords` placed 2,618 stations (no junctions yet: ask `junction-points`). The dots' kind and name come from `places.json`, joined by code (a code in both lists is the station, as `compactPoints` takes it).
+- 2026-10-25 `map-junctions` added 3,064 junctions and other timing points from BPLAN to `points.json` (153 KB, 62 KB gzipped): thin them at low zoom. Some are left out by its 5 km and 15 km cut-offs; a missing dot may be one of those (docs/how-it-works.md, "If a point is missing from the map").

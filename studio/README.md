@@ -53,11 +53,13 @@ too-too-soon/
 
   packages/                 shared libraries
     core/                   RTT types, the join and the time sum; no DOM, no fetch
+      data/                 the kept copy of Network Rail's BPLAN (`pnpm bplan`)
   worker/                   the Cloudflare Worker: /api/*, holds the token, serves the page
   web/                      the page: a Vite app, installable as a PWA
 
   scripts/
     health/                 the health check and its checks (`pnpm health`)
+    bplan.mjs               keeps a copy of the producer's BPLAN file (`pnpm bplan`)
   .claude/                  the studio's wiring: role briefs (agents/) and commands (skills/)
   .github/
     workflows/              CI, the PR title check, the deploy (Worker), the demo (Pages), and the probe of the live site
