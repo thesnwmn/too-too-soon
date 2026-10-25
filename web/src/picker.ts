@@ -136,7 +136,15 @@ export function openPicker(root: HTMLElement, opts: PickerOptions, done: (result
   // The dots a track tap can find: the stations, and the others while they show.
   let walkable = { stations: [] as MapPoint[], others: [] as MapPoint[] };
   let closed = false;
-  const map = new maplibregl.Map({ container: "map", style: STYLE, center: [-1.9, 52.8], zoom: 5.5, attributionControl: { compact: false, customAttribution: CREDIT_NAMES } });
+  const map = new maplibregl.Map({ container: "map", style: STYLE, center: [-1.9, 52.8], zoom: 5.5, attributionControl: { customAttribution: CREDIT_NAMES } });
+  // On a phone the credits start open, then fold into an ⓘ (tap to read them again) at the first
+  // tap, zoom or move of yours: MapLibre folds them only on a drag, and they're several lines.
+  const foldCredits = (e: { originalEvent?: unknown }) => {
+    if (!e.originalEvent) return;
+    map.getContainer().querySelector(".maplibregl-compact-show")?.classList.remove("maplibregl-compact-show");
+    for (const ev of ["click", "movestart"] as const) map.off(ev, foldCredits);
+  };
+  for (const ev of ["click", "movestart"] as const) map.on(ev, foldCredits);
   const dotsReady = loadMapPoints();
   map.on("load", async () => {
     map.addSource("railways", { type: "raster", tiles: RAILWAYS, tileSize: 256, maxzoom: 19, attribution: '<a href="https://www.openrailwaymap.org/">OpenRailwayMap</a>' });
