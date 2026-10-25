@@ -46,7 +46,9 @@ jobs:
           B: ${{ inputs.b }}
           F: ${{ inputs.f }}
           SITE: ${{ inputs.url }}
-      - if: inputs.sample != '' && inputs.sample != 'places'
+      - if: inputs.sample == 'coords'
+        run: node .github/scripts/coords-sample.mjs
+      - if: inputs.sample != '' && inputs.sample != 'places' && inputs.sample != 'coords'
         run: node .github/scripts/rtt-sample.mjs
         env:
           SAMPLE: ${{ inputs.sample }}

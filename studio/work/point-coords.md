@@ -3,7 +3,7 @@ title: Every timing point has a place on the map
 kind: build
 role: engineer
 size: S
-status: ready
+status: doing
 milestone: m1-first-trains
 ---
 
