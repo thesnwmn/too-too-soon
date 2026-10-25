@@ -3,7 +3,7 @@ title: The spot's name fills itself in as you pick, from the place or the road a
 kind: build
 role: engineer
 size: M
-status: ready
+status: doing
 milestone: m1-first-trains
 ---
 
