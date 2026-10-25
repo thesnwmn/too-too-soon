@@ -3,6 +3,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { placesProblems } from "../../../packages/core/src/places.ts";
+import { pointsProblems } from "../../../packages/core/src/points.ts";
 import { type Check, type Ctx, fail, findInCode, pass, sourceFiles, tail } from "./check.ts";
 
 const pnpmScript = (id: string, script: string, hint: string, slow = false): Check => ({
@@ -158,5 +159,21 @@ export const places: Check = {
   },
 };
 
+/** Where each station is on the map, made beside the place list at deploy time (.github/scripts/places.mjs). */
+export const POINTS = "web/public/points.json";
+
+export const points: Check = {
+  id: "code/points",
+  tier: 4,
+  repro: `node -e "console.log(require('fs').statSync('${POINTS}').size)"`,
+  hint: "The points list is { v: 1, points: [[code, lat, lon]] }, at least POINTS_MIN of them, all in Great Britain, under POINTS_MAX_BYTES (packages/core/src/points.ts). It's made by .github/scripts/places.mjs from NaPTAN, which makes the same check before writing it.",
+  run({ root }) {
+    const path = join(root, POINTS);
+    if (!existsSync(path)) return pass("none made here");
+    const problems = pointsProblems(readFileSync(path, "utf8"));
+    return problems.length ? fail(problems.join("; ")) : pass(`${Math.round(readFileSync(path).length / 1024)} KB`);
+  },
+};
+
 // Cheap scans first, so a broken convention shows before the slow runs.
-export const CODE = [noToken, rttHost, noDom, wrangler, mapLazy, icons, places, typecheck, test, build];
+export const CODE = [noToken, rttHost, noDom, wrangler, mapLazy, icons, places, points, typecheck, test, build];

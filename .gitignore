@@ -6,3 +6,4 @@ dist/
 .dev.vars
 # Made at deploy time from RTT (.github/scripts/places.mjs).
 web/public/places.json
+web/public/points.json

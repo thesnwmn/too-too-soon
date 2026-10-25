@@ -2,8 +2,12 @@
 // (packages/core/src/places.ts): run by deploy.yml before the page is built, with the RTT_TOKEN
 // secret, which never reaches the page. `node .github/scripts/places.mjs web/public/places.json`.
 // If RTT can't be asked, it says so and writes nothing: the page then asks for codes instead.
+// Then it writes points.json beside it, where each station is on the map (packages/core/src/points.ts),
+// from NaPTAN's open list of stops; if NaPTAN can't be asked, it says so and writes no points.
 import { writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { compactPlaces, placesProblems } from "../../packages/core/src/places.ts";
+import { compactPoints, naptanStations, pointsProblems } from "../../packages/core/src/points.ts";
 
 const RTT = "https://data.rtt.io";
 const out = process.argv[2];
@@ -31,10 +35,31 @@ const get = async (path, key) => {
   if (!Array.isArray(list) || !list.length) warn(`RTT sent no ${key} from ${path}.`);
   return list;
 };
-const places = compactPlaces(await get("/data/locations_ungrouped", "locations"), await get("/data/stops", "stops"));
+const locations = await get("/data/locations_ungrouped", "locations");
+const places = compactPlaces(locations, await get("/data/stops", "stops"));
 const json = JSON.stringify(places);
 // The same check the health check makes: a list that's oddly big or the wrong shape isn't shipped.
 const problems = placesProblems(json);
 if (problems.length) warn(`The list doesn't look right (${problems.join("; ")}).`);
 writeFileSync(out, json);
 console.log(`${out}: ${places.stations.length} stations and ${places.others.length} other timing points, ${Math.round(json.length / 1024)} KB`);
+
+// Where each station is on the map. No token: NaPTAN is open to all.
+const NAPTAN = "https://naptan.api.dft.gov.uk/v1/access-nodes?dataFormat=csv&atcoAreaCodes=910";
+const pointsOut = join(dirname(out), "points.json");
+const noPoints = (msg) => console.log(`::warning title=No points::${msg} The map won't show where stations are.`);
+const r = await fetch(NAPTAN, { headers: { "User-Agent": "too-too-soon/1 (+https://github.com/thesnwmn/too-too-soon)" } }).catch(() => undefined);
+const stations = r?.ok ? naptanStations(await r.text()) : [];
+if (!stations.length) noPoints(`NaPTAN answered ${r?.status ?? "nothing"}, with no rail stations.`);
+else {
+  const points = compactPoints(stations, locations, places);
+  const pointsJson = JSON.stringify(points);
+  const pointsBad = pointsProblems(pointsJson);
+  if (pointsBad.length) noPoints(`The list doesn't look right (${pointsBad.join("; ")}).`);
+  else {
+    writeFileSync(pointsOut, pointsJson);
+    const spot = (code) => points.points.find((p) => p[0] === code)?.slice(1).join(", ") ?? "not placed";
+    console.log(`${pointsOut}: ${points.points.length} of ${places.stations.length} stations placed, from ${stations.length} NaPTAN rail stops, ${Math.round(pointsJson.length / 1024)} KB`);
+    for (const code of ["WOK", "BKO", "CLJ", "WOKINGJ"]) console.log(`  ${code}: ${spot(code)}`);
+  }
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { icons, mapLazy, places, rttHost, noDom, noToken, pngSize, typecheck, wrangler } from "../src/code.ts";
+import { icons, mapLazy, places, points, rttHost, noDom, noToken, pngSize, typecheck, wrangler } from "../src/code.ts";
 import { ctx, fakeShell, tmpDir } from "./fixture.ts";
 
 describe("code/typecheck (and the other pnpm runs)", () => {
@@ -102,5 +102,19 @@ describe("code/places", () => {
     expect(places.run(ctx(tmpDir({ "web/public/places.json": '{"v":1,"stations":[],"others":[]}' }))).detail).toBe("no stations");
     expect(places.run(ctx(tmpDir({ "web/public/places.json": JSON.stringify({ v: 1, stations: [["Woking", "wok"]], others: [] }) }))).detail).toBe("a station isn't [name, code]");
     expect(places.run(ctx(tmpDir({ "web/public/places.json": "x".repeat(1_600_000) }))).status).toBe("fail");
+  });
+});
+
+describe("code/points", () => {
+  const list = (n: number) => ({ v: 1, points: Array.from({ length: n }, (_, i) => [`P${String(i).padStart(4, "0")}`, 51.3, -0.55]) });
+  it("passes with no list made, or a good one", () => {
+    expect(points.run(ctx(tmpDir())).status).toBe("pass");
+    expect(points.run(ctx(tmpDir({ "web/public/points.json": JSON.stringify(list(1200)) }))).status).toBe("pass");
+  });
+  it("fails on a list with almost none placed, or a point outside Great Britain", () => {
+    expect(points.run(ctx(tmpDir({ "web/public/points.json": JSON.stringify(list(5)) }))).detail).toBe("only 5 points, fewer than 1000");
+    const away = list(1200);
+    away.points[0] = ["WOK", 51.3, 120];
+    expect(points.run(ctx(tmpDir({ "web/public/points.json": JSON.stringify(away) }))).detail).toBe("WOK is outside Great Britain (51.3, 120)");
   });
 });
