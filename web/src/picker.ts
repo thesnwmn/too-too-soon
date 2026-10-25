@@ -1,9 +1,10 @@
 // The map picker: tap the railway where you watch from, and it finds the timing points either
-// side (packages/core locate) from OpenStreetMap, asked through the Worker's /api/osm. And the
-// dots (find-on-map): every station from points.json, and the other timing points behind a
-// switch (timing-toggle), which a tap shows on a card, to fill a box on the set-up form; "Find on
-// map" opens it for one box. Loaded only when
-// the set-up asks for it, so the watch view stays small.
+// side (packages/core locate): the track from the map's own tiles and the timing points from the
+// dots (track.ts, picker-offline), or, where the tiles have no rail, from OpenStreetMap, asked
+// through the Worker's /api/osm. And the dots (find-on-map): every station from points.json, and
+// the other timing points behind a switch (timing-toggle), which a tap shows on a card, to fill a
+// box on the set-up form; "Find on map" opens it for one box. Loaded only when the set-up asks
+// for it, so the watch view stays small.
 import * as maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 // MapLibre draws vector tiles in a web worker it finds next to its own file, which a bundle
@@ -13,6 +14,7 @@ import { codeLabel, KIND_TEXT, type Located, locate, type MapPoint, mapCentre, t
 import type { Filled } from "./fill.ts";
 import { loadMapPoints } from "./points.ts";
 import { othersNeeded, othersOn, setOthersOn, splitDots } from "./toggle.ts";
+import { findOnTiles, type TileSource } from "./track.ts";
 
 /** localStorage, or nothing when the browser blocks it (private browsing). */
 function storage(): Storage | undefined {
@@ -24,6 +26,14 @@ function storage(): Storage | undefined {
 }
 
 maplibregl.setWorkerUrl(workerUrl);
+
+/** The map's vector tiles (the style's source with the `transportation` layer), to find the track in. */
+function tileSource(map: maplibregl.Map): TileSource | undefined {
+  const layer = map.getStyle().layers.find((l) => "source-layer" in l && l["source-layer"] === "transportation");
+  const id = layer && "source" in layer ? layer.source : undefined;
+  const src = id ? (map.getSource(id) as maplibregl.VectorTileSource | undefined) : undefined;
+  return src?.tiles?.[0] ? { template: src.tiles[0], maxzoom: src.maxzoom } : undefined;
+}
 
 /** Straight to Overpass, only where there's no Worker (the demo on GitHub Pages). */
 const OVERPASS = "https://overpass-api.de/api/interpreter";
@@ -123,6 +133,8 @@ export function openPicker(root: HTMLElement, opts: PickerOptions, done: (result
   // Find on map has no "Use this spot": a stand-in keeps the track code below simple.
   const use = root.querySelector<HTMLButtonElement>("#pick-use") ?? document.createElement("button");
   let byCode = new Map<string, MapPoint>();
+  // The dots a track tap can find: the stations, and the others while they show.
+  let walkable = { stations: [] as MapPoint[], others: [] as MapPoint[] };
   let closed = false;
   const map = new maplibregl.Map({ container: "map", style: STYLE, center: [-1.9, 52.8], zoom: 5.5, attributionControl: { customAttribution: CREDIT_NAMES } });
   // On a phone the credits start open, then fold into an ⓘ (tap to read them again) at the first
@@ -173,6 +185,7 @@ export function openPicker(root: HTMLElement, opts: PickerOptions, done: (result
     };
     const showOthers = othersOn(storage());
     const { stations, others } = splitDots(dots);
+    walkable = { stations, others };
     addSet("stations", stations, CREDIT_STATIONS, true);
     addSet("others", others, CREDIT_OTHERS, showOthers);
     toggle.checked = showOthers;
@@ -265,20 +278,38 @@ export function openPicker(root: HTMLElement, opts: PickerOptions, done: (result
       return;
     }
     const mine = ++asking;
+    // Whether OpenStreetMap is being asked (the fallback), to say who didn't answer.
+    let askingOsm = false;
     picked = undefined;
     use.disabled = true;
     markers.forEach((m) => m.remove());
     markers = [new maplibregl.Marker({ color: "#64748b" }).setLngLat(e.lngLat).addTo(map)];
     status.textContent = "Looking along the track…";
-    const slow = window.setTimeout(() => mine === asking && (status.textContent = "Still looking: OpenStreetMap's free servers can be slow, especially late at night…"), 10_000);
     try {
-      // A new tap cancels the last one's lookup, so taps don't pile up against the server's limit.
+      // A new tap cancels the last one's lookup, so taps don't pile up.
       inFlight?.abort();
       inFlight = new AbortController();
-      const found = await find(e.lngLat.lat, e.lngLat.lng, inFlight.signal).finally(() => window.clearTimeout(slow));
+      const signal = inFlight.signal;
+      const tap = { lat: e.lngLat.lat, lon: e.lngLat.lng };
+      // The track from the map's tiles and the dots you can see; OpenStreetMap only where the tiles have no rail, or there are no dots.
+      const src = tileSource(map);
+      const dots = [...walkable.stations, ...(toggle.checked ? walkable.others : [])];
+      let found = src && dots.length ? await findOnTiles(src, tap, dots, signal) : "no track";
       if (mine !== asking) return;
+      if (found === "no track") {
+        askingOsm = true;
+        const slow = window.setTimeout(() => mine === asking && (status.textContent = "Still looking: OpenStreetMap's free servers can be slow, especially late at night…"), 10_000);
+        found = await find(tap.lat, tap.lon, signal).finally(() => window.clearTimeout(slow));
+        if (mine !== asking) return;
+      }
+      if (found === "missed") {
+        status.textContent = "That's not on the track: zoom in and tap right on the line.";
+        return;
+      }
       if (!found) {
-        status.textContent = "Couldn't find a railway track with timing points either side here. Tap right on the track, or type the codes instead.";
+        status.textContent = toggle.checked
+          ? "Couldn't find a railway track with a station or timing point either side here. Tap right on the track, or tap a dot instead."
+          : "Couldn't find a railway track with a station either side here. Tap right on the track, switch on junctions and timing points, or tap a dot instead.";
         return;
       }
       markers.forEach((m) => m.remove());
@@ -312,7 +343,7 @@ export function openPicker(root: HTMLElement, opts: PickerOptions, done: (result
           : (err as Error).name === "TimeoutError"
             ? "OpenStreetMap is slow to answer just now: try again in a moment."
             : (err as Error).name === "TypeError"
-              ? "Couldn't reach OpenStreetMap: no signal? Try again in a moment."
+              ? `Couldn't reach ${askingOsm ? "OpenStreetMap" : "the map"}: no signal? Try again in a moment.`
               : `${(err as Error).message}: try again in a moment.`;
     }
   });

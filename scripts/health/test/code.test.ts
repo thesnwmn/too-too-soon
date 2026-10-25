@@ -56,6 +56,14 @@ describe("code/map-lazy", () => {
     expect(mapLazy.run(ctx(tmpDir({ ...picker, "web/src/main.ts": 'import { openPicker } from "./picker.ts";\n' }))).status).toBe("fail");
     expect(mapLazy.run(ctx(tmpDir({ ...picker, "web/src/map.ts": 'export { Map } from "maplibre-gl";\n' }))).status).toBe("fail");
   });
+  const track = { "web/src/track.ts": 'import { VectorTile } from "@mapbox/vector-tile";\nimport { PbfReader } from "pbf";\n' };
+  it("passes when only the track finder imports the tile decoder, and only the picker imports it", () =>
+    expect(mapLazy.run(ctx(tmpDir({ ...picker, ...track, "web/src/picker.ts": 'import { findOnTiles } from "./track.ts";\n' }))).status).toBe("pass"));
+  it("fails on the tile decoder or the track finder imported by the rest of the page", () => {
+    expect(mapLazy.run(ctx(tmpDir({ ...picker, ...track, "web/src/main.ts": 'import { PbfReader } from "pbf";\n' }))).status).toBe("fail");
+    expect(mapLazy.run(ctx(tmpDir({ ...picker, ...track, "web/src/main.ts": 'import { findOnTiles } from "./track.ts";\n' }))).status).toBe("fail");
+    expect(mapLazy.run(ctx(tmpDir({ ...picker, "web/src/track.ts": 'import * as m from "maplibre-gl";\n' }))).status).toBe("fail");
+  });
 });
 
 describe("code/icons", () => {
