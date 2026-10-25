@@ -101,8 +101,11 @@ interface Stop {
  * track is walked both ways from the tap, and the nearest timing point found ahead on each side
  * wins: "ahead" meaning it lies that side of the tap along the track's local direction, so a
  * walk that loops back through a crossover can't find the other side's station.
+ *
+ * `cut` names track ends that aren't real ends, where the data given stops (a map tile's edge):
+ * a timing point past one isn't hung off it, as it's further along the track than that.
  */
-export function locate(elements: OsmElement[], tap: { lat: number; lon: number }): Located | undefined {
+export function locate(elements: OsmElement[], tap: { lat: number; lon: number }, cut?: Set<number>): Located | undefined {
   const edges: Edge[] = [];
   const adj = new Map<number, number[]>();
   for (const w of elements) {
@@ -131,13 +134,24 @@ export function locate(elements: OsmElement[], tap: { lat: number; lon: number }
     const code = tiplocOf(n.tags);
     if (n.type !== "node" || !code || n.lat === undefined || n.lon === undefined) continue;
     const at = { lat: n.lat, lon: n.lon };
+    const near: { k: number; t: number; gap: number }[] = [];
     edges.forEach((e, k) => {
       const pr = project(at, e.p, e.q);
       const gap = distance(at, pr);
       if (gap > ATTACH_M) return;
-      if (!onEdge.has(k)) onEdge.set(k, []);
-      onEdge.get(k)!.push({ t: pr.t, stop: { code, name: n.tags?.name ?? code, lat: n.lat!, lon: n.lon!, gap } });
+      if ((pr.t === 0 && cut?.has(e.u)) || (pr.t === 1 && cut?.has(e.v))) return;
+      near.push({ k, t: pr.t, gap });
     });
+    // Hung off the end of a segment only where no segment from that end comes nearer: else the
+    // segment stops short of it (the next one carries on, or the line was cut at a tile's edge
+    // and another tile's carries on), and would count it nearer the tap than it is.
+    const gapOn = new Map(near.map((x) => [x.k, x.gap]));
+    const shortOf = (node: number, gap: number) => (adj.get(node) ?? []).some((j) => (gapOn.get(j) ?? Infinity) < gap - 1);
+    for (const { k, t, gap } of near) {
+      if ((t === 0 && shortOf(edges[k].u, gap)) || (t === 1 && shortOf(edges[k].v, gap))) continue;
+      if (!onEdge.has(k)) onEdge.set(k, []);
+      onEdge.get(k)!.push({ t, stop: { code, name: n.tags?.name ?? code, lat: n.lat!, lon: n.lon!, gap } });
+    }
   }
 
   // Which way is "towards u" at the tap, flat-earth: a stop counts for a side only if it lies that way.

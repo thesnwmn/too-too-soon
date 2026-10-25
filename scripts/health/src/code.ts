@@ -95,18 +95,21 @@ export const wrangler: Check = {
 
 /** The map picker, the only page code that may load MapLibre, and only by a dynamic import. */
 export const PICKER = "web/src/picker.ts";
+/** The picker's track finder (picker-offline), the only other page code that may load the vector tile decoder, and only from the picker. */
+export const TRACK = "web/src/track.ts";
 
 export const mapLazy: Check = {
   id: "code/map-lazy",
   tier: 4,
-  repro: `grep -rn "maplibre-gl\\|picker" web/src`,
-  hint: "MapLibre is about 1 MB: only web/src/picker.ts imports it, and the rest of the page loads the picker with import(\"./picker.ts\"), so the watch view stays small on a phone at the bridge.",
+  repro: `grep -rn "maplibre-gl\\|picker\\|vector-tile\\|pbf\\|track" web/src`,
+  hint: "MapLibre is about 1 MB: only web/src/picker.ts imports it, and the rest of the page loads the picker with import(\"./picker.ts\"), so the watch view stays small on a phone at the bridge. The same for the tile decoder (@mapbox/vector-tile, pbf): only web/src/track.ts imports it, and only the picker imports that.",
   run({ root }) {
     const files = sourceFiles(root, "web/src").filter((f) => f !== PICKER);
+    const lazy = (f: string) => (f === TRACK ? /^\s*(import|export)\s.*["'](maplibre-gl[^"']*|\.\/picker(\.ts)?)["']/ : /^\s*(import|export)\s.*["'](maplibre-gl[^"']*|\.\/picker(\.ts)?|@mapbox\/vector-tile|pbf|\.\/track(\.ts)?)["']/);
     const hits = files.flatMap((f) =>
       readFileSync(join(root, f), "utf8")
         .split("\n")
-        .flatMap((line, i) => (/^\s*(import|export)\s.*["'](maplibre-gl[^"']*|\.\/picker(\.ts)?)["']/.test(line) ? [`${f}:${i + 1}: ${line.trim()}`] : [])),
+        .flatMap((line, i) => (lazy(f).test(line) ? [`${f}:${i + 1}: ${line.trim()}`] : [])),
     );
     return hits.length ? fail(`${hits.length} static import${hits.length === 1 ? "" : "s"}`, hits.join("\n")) : pass(`${files.length} files`);
   },
